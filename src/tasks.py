@@ -501,7 +501,8 @@ class TableConnectivity(Task):
                     if connected:
                         break
                 
-                ys_b[i, j] = 1.0 if connected else 0.0
+                # Return 1 for connected, -1 for not connected (for cross_entropy loss)
+                ys_b[i, j] = 1.0 if connected else -1.0
         
         return ys_b
     
