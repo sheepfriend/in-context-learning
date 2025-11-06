@@ -36,9 +36,6 @@ def sample_seeds(total_seeds, count):
 
 
 def train(model, args):
-    # Access model attributes correctly (handle DataParallel wrapper)
-    base_model = model.module if isinstance(model, torch.nn.DataParallel) else model
-    
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)
 
@@ -46,14 +43,13 @@ def train(model, args):
     state_path = os.path.join(args.out_dir, "state.pt")
     if os.path.exists(state_path):
         state = torch.load(state_path)
-        # Load model state into base_model (without DataParallel wrapper)
-        base_model.load_state_dict(state["model_state_dict"])
+        model.load_state_dict(state["model_state_dict"])
         optimizer.load_state_dict(state["optimizer_state_dict"])
         starting_step = state["train_step"]
         for i in range(state["train_step"] + 1):
             curriculum.update()
 
-    n_dims = base_model.n_dims
+    n_dims = model.n_dims
     bsize = args.training.batch_size
     # Pass task_kwargs to data_sampler for tasks that need special input formats
     data_sampler = get_data_sampler(args.training.data, n_dims=n_dims, **args.training.task_kwargs)
@@ -123,10 +119,8 @@ def train(model, args):
 
         pbar.set_description(f"loss {loss}")
         if i % args.training.save_every_steps == 0 and not args.test_run:
-            # Save model state, handling DataParallel
-            model_state = base_model.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
             training_state = {
-                "model_state_dict": model_state,
+                "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "train_step": i,
             }
@@ -138,9 +132,7 @@ def train(model, args):
             and not args.test_run
             and i > 0
         ):
-            # Save model state, handling DataParallel
-            model_state = base_model.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
-            torch.save(model_state, os.path.join(args.out_dir, f"model_{i}.pt"))
+            torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
 
 
 def main(args):
@@ -161,15 +153,7 @@ def main(args):
         )
 
     model = build_model(args.model)
-    
-    # Enable multi-GPU training with DataParallel
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs for training")
-        model = torch.nn.DataParallel(model)
-        model.cuda()  # Move DataParallel model to GPUs
-    else:
-        model.cuda()  # Single GPU
-    
+    model.cuda()
     model.train()
 
     train(model, args)
