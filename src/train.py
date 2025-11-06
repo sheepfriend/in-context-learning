@@ -67,7 +67,8 @@ def train(model, args):
     base_model = model.module if isinstance(model, torch.nn.DataParallel) else model
     n_dims = base_model.n_dims
     bsize = args.training.batch_size
-    data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
+    # Pass task_kwargs to data_sampler for tasks that need special input formats
+    data_sampler = get_data_sampler(args.training.data, n_dims=n_dims, **args.training.task_kwargs)
     task_sampler = get_task_sampler(
         args.training.task,
         n_dims,

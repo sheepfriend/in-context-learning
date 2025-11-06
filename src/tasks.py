@@ -360,154 +360,118 @@ class TableConnectivity(Task):
         """
         Graph-based table connectivity task.
         
+        The task parses graph structure from x and evaluates connectivity.
+        
         Args:
-            n_dims: dimension of input (should be >= V*(C+1) + 2 to encode all tables and query)
-            batch_size: number of different graph instances
-            V: maximum number of tables (nodes in graph)
-            C: maximum number of columns per table
-            rho: connectivity parameter (probability of edge between tables)
+            n_dims: dimension of input  
+            batch_size: batch size
+            V: maximum number of tables (for reference)
+            C: maximum number of columns per table (for reference)
+            rho: connectivity parameter (not used in evaluate, only for reference)
         """
         super(TableConnectivity, self).__init__(n_dims, batch_size, pool_dict, seeds)
         self.V = V
         self.C = C
         self.rho = rho
-        
-        # Generate graph structures for each batch
-        self.graphs = []
-        self.table_columns = []  # List of column assignments for each table
-        self.shared_columns = []  # List of shared columns (edges)
-        
-        if seeds is not None:
-            generator = torch.Generator()
-            assert len(seeds) == self.b_size
-        else:
-            generator = None
-            
-        for i in range(batch_size):
-            if seeds is not None:
-                generator.manual_seed(seeds[i])
-                # Generate graph with networkx using numpy random state
-                import numpy as np
-                np.random.seed(seeds[i])
-            
-            # Generate random graph with V nodes
-            # Use Erdős-Rényi model with probability rho
-            G = nx.erdos_renyi_graph(V, rho, seed=seeds[i] if seeds else None)
-            
-            # Assign columns to each table
-            # Each table has C columns (using column IDs)
-            # Total column pool size
-            total_columns = V * C
-            
-            # Assign unique columns to each table initially
-            table_cols = {}
-            col_id = 0
-            for node in range(V):
-                if seeds is not None:
-                    cols = torch.randint(0, total_columns, (C,), generator=generator).tolist()
-                else:
-                    cols = torch.randint(0, total_columns, (C,)).tolist()
-                table_cols[node] = cols
-            
-            # For each edge, make tables share a column
-            shared_cols = {}
-            for u, v in G.edges():
-                # Pick a random column from each table to be shared
-                if seeds is not None:
-                    u_col_idx = torch.randint(0, C, (1,), generator=generator).item()
-                    v_col_idx = torch.randint(0, C, (1,), generator=generator).item()
-                else:
-                    u_col_idx = torch.randint(0, C, (1,)).item()
-                    v_col_idx = torch.randint(0, C, (1,)).item()
-                
-                # Make them share the same column ID
-                shared_col_id = table_cols[u][u_col_idx]
-                table_cols[v][v_col_idx] = shared_col_id
-                shared_cols[(u, v)] = shared_col_id
-            
-            self.graphs.append(G)
-            self.table_columns.append(table_cols)
-            self.shared_columns.append(shared_cols)
-        
-        # Precompute connectivity for efficiency
-        self._precompute_connectivity()
-        
-        # Clean up NetworkX graphs to avoid serialization issues with DataParallel
-        # All needed information is now in connectivity_cache
-        del self.graphs
-    
-    def _precompute_connectivity(self):
-        """Precompute column connectivity for fast lookup."""
-        self.connectivity_cache = []
-        for i in range(len(self.graphs)):
-            G = self.graphs[i]
-            table_cols = self.table_columns[i]
-            
-            # Build column-to-tables mapping
-            col_to_tables = {}
-            for table_id, cols in table_cols.items():
-                for col in cols:
-                    if col not in col_to_tables:
-                        col_to_tables[col] = []
-                    col_to_tables[col].append(table_id)
-            
-            # Precompute connectivity as a simple set of (node1, node2) pairs
-            # This is easily serializable for DataParallel
-            connected_pairs = set()
-            for node1 in G.nodes():
-                for node2 in G.nodes():
-                    if node1 == node2 or nx.has_path(G, node1, node2):
-                        connected_pairs.add((node1, node2))
-            
-            self.connectivity_cache.append({
-                'col_to_tables': col_to_tables,
-                'connected_pairs': connected_pairs
-            })
     
     def evaluate(self, xs_b):
         """
-        Evaluate table connectivity.
+        Evaluate table connectivity by parsing graph structure from x.
         
-        Input xs_b encodes:
-        - Table schemas (V tables with C columns each)
-        - Query: two column IDs to check connectivity
+        Input xs_b encoding (each row is a name token):
+        Format: table1 | col1 | col2 | col3 | table2 | col4 | ... | query_col1 | query_col2 | ...
         
-        The last 2 dimensions of xs_b encode the query column pair.
+        Last dimension encoding:
+        - Table names: >= 1000 (e.g., 1000, 1001, 1002, ...)
+        - Column names: < 1000 (e.g., 0, 1, 2, ..., V*C-1)
         
-        Output: 1 if columns are connected through tables, 0 otherwise
+        Output: 1 if columns are connected, -1 otherwise
         """
         batch_size = xs_b.shape[0]
-        num_queries = xs_b.shape[1]
-        ys_b = torch.zeros(batch_size, num_queries, device=xs_b.device)
+        num_points = xs_b.shape[1]
+        ys_b = torch.zeros(batch_size, num_points, device=xs_b.device)
         
         for i in range(batch_size):
-            cache_idx = i if i < len(self.connectivity_cache) else 0
-            cache = self.connectivity_cache[cache_idx]
-            col_to_tables = cache['col_to_tables']
-            connected_pairs = cache['connected_pairs']
+            # Parse schema: identify tables and their columns
+            col_to_tables = {}
+            current_table = None
+            schema_end = None
             
-            for j in range(num_queries):
-                # Extract query column pair from last 2 dimensions
-                col1 = int(xs_b[i, j, -2].item())
-                col2 = int(xs_b[i, j, -1].item())
+            for j in range(num_points):
+                name_id = int(xs_b[i, j, -1].item())
                 
-                # Find which tables contain these columns using cached mapping
+                if name_id == 9999:  # Separator token
+                    schema_end = j + 1
+                    break
+                elif name_id >= 1000:  # Table name
+                    current_table = name_id - 1000
+                elif current_table is not None:  # Column name following a table
+                    col_id = name_id
+                    if col_id not in col_to_tables:
+                        col_to_tables[col_id] = []
+                    if current_table not in col_to_tables[col_id]:
+                        col_to_tables[col_id].append(current_table)
+            
+            # Build table connectivity graph based on shared columns
+            table_graph = {}
+            for col_id, tables in col_to_tables.items():
+                if len(tables) > 1:
+                    for t1 in tables:
+                        if t1 not in table_graph:
+                            table_graph[t1] = set()
+                        for t2 in tables:
+                            if t1 != t2:
+                                table_graph[t1].add(t2)
+            
+            # BFS connectivity check
+            def is_connected(t1, t2):
+                if t1 == t2:
+                    return True
+                if t1 not in table_graph:
+                    return False
+                visited = set([t1])
+                queue = [t1]
+                while queue:
+                    current = queue.pop(0)
+                    if current == t2:
+                        return True
+                    for neighbor in table_graph.get(current, []):
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            queue.append(neighbor)
+                return False
+            
+            # Evaluate queries: consecutive pairs of columns
+            if schema_end is None:
+                schema_end = num_points
+            
+            j = schema_end
+            while j < num_points - 1:
+                col1 = int(xs_b[i, j, -1].item())
+                col2 = int(xs_b[i, j + 1, -1].item())
+                
+                # Skip if these are table names
+                if col1 >= 1000 or col2 >= 1000:
+                    j += 1
+                    continue
+                
+                # Find tables containing these columns
                 tables_with_col1 = col_to_tables.get(col1, [])
                 tables_with_col2 = col_to_tables.get(col2, [])
                 
-                # Check if any pair of tables (one from each set) is connected
+                # Check connectivity
                 connected = False
                 for t1 in tables_with_col1:
                     for t2 in tables_with_col2:
-                        # Check connectivity using precomputed pairs (O(1) lookup)
-                        if (t1, t2) in connected_pairs:
+                        if is_connected(t1, t2):
                             connected = True
                             break
                     if connected:
                         break
                 
-                # Return 1 for connected, -1 for not connected (for cross_entropy loss)
-                ys_b[i, j] = 1.0 if connected else -1.0
+                # Store result at the second position of the query pair
+                ys_b[i, j + 1] = 1.0 if connected else -1.0
+                j += 2  # Move to next query pair
         
         return ys_b
     
