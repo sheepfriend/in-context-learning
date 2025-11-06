@@ -36,6 +36,9 @@ def sample_seeds(total_seeds, count):
 
 
 def train(model, args):
+    # Access model attributes correctly (handle DataParallel wrapper)
+    base_model = model.module if isinstance(model, torch.nn.DataParallel) else model
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)
 
@@ -43,28 +46,13 @@ def train(model, args):
     state_path = os.path.join(args.out_dir, "state.pt")
     if os.path.exists(state_path):
         state = torch.load(state_path)
-        # Handle both DataParallel and non-DataParallel models
-        try:
-            model.load_state_dict(state["model_state_dict"])
-        except RuntimeError:
-            # Try loading with/without 'module.' prefix
-            from collections import OrderedDict
-            new_state_dict = OrderedDict()
-            for k, v in state["model_state_dict"].items():
-                if k.startswith('module.') and not isinstance(model, torch.nn.DataParallel):
-                    new_state_dict[k[7:]] = v  # remove 'module.' prefix
-                elif not k.startswith('module.') and isinstance(model, torch.nn.DataParallel):
-                    new_state_dict['module.' + k] = v  # add 'module.' prefix
-                else:
-                    new_state_dict[k] = v
-            model.load_state_dict(new_state_dict)
+        # Load model state into base_model (without DataParallel wrapper)
+        base_model.load_state_dict(state["model_state_dict"])
         optimizer.load_state_dict(state["optimizer_state_dict"])
         starting_step = state["train_step"]
         for i in range(state["train_step"] + 1):
             curriculum.update()
 
-    # Access model attributes correctly (handle DataParallel wrapper)
-    base_model = model.module if isinstance(model, torch.nn.DataParallel) else model
     n_dims = base_model.n_dims
     bsize = args.training.batch_size
     # Pass task_kwargs to data_sampler for tasks that need special input formats
@@ -135,8 +123,10 @@ def train(model, args):
 
         pbar.set_description(f"loss {loss}")
         if i % args.training.save_every_steps == 0 and not args.test_run:
+            # Save model state, handling DataParallel
+            model_state = base_model.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
             training_state = {
-                "model_state_dict": model.state_dict(),
+                "model_state_dict": model_state,
                 "optimizer_state_dict": optimizer.state_dict(),
                 "train_step": i,
             }
@@ -148,7 +138,9 @@ def train(model, args):
             and not args.test_run
             and i > 0
         ):
-            torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
+            # Save model state, handling DataParallel
+            model_state = base_model.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
+            torch.save(model_state, os.path.join(args.out_dir, f"model_{i}.pt"))
 
 
 def main(args):
