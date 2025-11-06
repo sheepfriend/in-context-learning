@@ -1,6 +1,7 @@
 import math
 
 import torch
+import networkx as nx
 
 
 def squared_error(ys_pred, ys):
@@ -60,6 +61,7 @@ def get_task_sampler(
         "quadratic_regression": QuadraticRegression,
         "relu_2nn_regression": Relu2nnRegression,
         "decision_tree": DecisionTree,
+        "table_connectivity": TableConnectivity,
     }
     if task_name in task_names_to_classes:
         task_cls = task_names_to_classes[task_name]
@@ -342,3 +344,146 @@ class DecisionTree(Task):
     @staticmethod
     def get_training_metric():
         return mean_squared_error
+
+
+class TableConnectivity(Task):
+    def __init__(
+        self,
+        n_dims,
+        batch_size,
+        pool_dict=None,
+        seeds=None,
+        V=5,
+        C=3,
+        rho=0.5,
+    ):
+        """
+        Graph-based table connectivity task.
+        
+        Args:
+            n_dims: dimension of input (should be >= V*(C+1) + 2 to encode all tables and query)
+            batch_size: number of different graph instances
+            V: maximum number of tables (nodes in graph)
+            C: maximum number of columns per table
+            rho: connectivity parameter (probability of edge between tables)
+        """
+        super(TableConnectivity, self).__init__(n_dims, batch_size, pool_dict, seeds)
+        self.V = V
+        self.C = C
+        self.rho = rho
+        
+        # Generate graph structures for each batch
+        self.graphs = []
+        self.table_columns = []  # List of column assignments for each table
+        self.shared_columns = []  # List of shared columns (edges)
+        
+        if seeds is not None:
+            generator = torch.Generator()
+            assert len(seeds) == self.b_size
+        else:
+            generator = None
+            
+        for i in range(batch_size):
+            if seeds is not None:
+                generator.manual_seed(seeds[i])
+                # Generate graph with networkx using numpy random state
+                import numpy as np
+                np.random.seed(seeds[i])
+            
+            # Generate random graph with V nodes
+            # Use Erdős-Rényi model with probability rho
+            G = nx.erdos_renyi_graph(V, rho, seed=seeds[i] if seeds else None)
+            
+            # Assign columns to each table
+            # Each table has C columns (using column IDs)
+            # Total column pool size
+            total_columns = V * C
+            
+            # Assign unique columns to each table initially
+            table_cols = {}
+            col_id = 0
+            for node in range(V):
+                if seeds is not None:
+                    cols = torch.randint(0, total_columns, (C,), generator=generator).tolist()
+                else:
+                    cols = torch.randint(0, total_columns, (C,)).tolist()
+                table_cols[node] = cols
+            
+            # For each edge, make tables share a column
+            shared_cols = {}
+            for u, v in G.edges():
+                # Pick a random column from each table to be shared
+                if seeds is not None:
+                    u_col_idx = torch.randint(0, C, (1,), generator=generator).item()
+                    v_col_idx = torch.randint(0, C, (1,), generator=generator).item()
+                else:
+                    u_col_idx = torch.randint(0, C, (1,)).item()
+                    v_col_idx = torch.randint(0, C, (1,)).item()
+                
+                # Make them share the same column ID
+                shared_col_id = table_cols[u][u_col_idx]
+                table_cols[v][v_col_idx] = shared_col_id
+                shared_cols[(u, v)] = shared_col_id
+            
+            self.graphs.append(G)
+            self.table_columns.append(table_cols)
+            self.shared_columns.append(shared_cols)
+    
+    def evaluate(self, xs_b):
+        """
+        Evaluate table connectivity.
+        
+        Input xs_b encodes:
+        - Table schemas (V tables with C columns each)
+        - Query: two column IDs to check connectivity
+        
+        The last 2 dimensions of xs_b encode the query column pair.
+        
+        Output: 1 if columns are connected through tables, 0 otherwise
+        """
+        batch_size = xs_b.shape[0]
+        num_queries = xs_b.shape[1]
+        ys_b = torch.zeros(batch_size, num_queries, device=xs_b.device)
+        
+        for i in range(batch_size):
+            G = self.graphs[i] if i < len(self.graphs) else self.graphs[0]
+            table_cols = self.table_columns[i] if i < len(self.table_columns) else self.table_columns[0]
+            
+            for j in range(num_queries):
+                # Extract query column pair from last 2 dimensions
+                # Assuming xs_b[i, j, -2] and xs_b[i, j, -1] encode the column IDs
+                col1 = int(xs_b[i, j, -2].item())
+                col2 = int(xs_b[i, j, -1].item())
+                
+                # Find which tables contain these columns
+                tables_with_col1 = [t for t, cols in table_cols.items() if col1 in cols]
+                tables_with_col2 = [t for t, cols in table_cols.items() if col2 in cols]
+                
+                # Check if any pair of tables (one from each set) is connected in the graph
+                connected = False
+                for t1 in tables_with_col1:
+                    for t2 in tables_with_col2:
+                        if t1 == t2 or nx.has_path(G, t1, t2):
+                            connected = True
+                            break
+                    if connected:
+                        break
+                
+                ys_b[i, j] = 1.0 if connected else 0.0
+        
+        return ys_b
+    
+    @staticmethod
+    def generate_pool_dict(n_dims, num_tasks, V=5, C=3, rho=0.5, **kwargs):
+        """Generate a pool of graph structures."""
+        # For now, we'll use seeds to generate different graphs
+        # This allows deterministic generation
+        return {"seeds": list(range(num_tasks))}
+    
+    @staticmethod
+    def get_metric():
+        return accuracy
+    
+    @staticmethod
+    def get_training_metric():
+        return cross_entropy
