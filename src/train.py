@@ -43,13 +43,29 @@ def train(model, args):
     state_path = os.path.join(args.out_dir, "state.pt")
     if os.path.exists(state_path):
         state = torch.load(state_path)
-        model.load_state_dict(state["model_state_dict"])
+        # Handle both DataParallel and non-DataParallel models
+        try:
+            model.load_state_dict(state["model_state_dict"])
+        except RuntimeError:
+            # Try loading with/without 'module.' prefix
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            for k, v in state["model_state_dict"].items():
+                if k.startswith('module.') and not isinstance(model, torch.nn.DataParallel):
+                    new_state_dict[k[7:]] = v  # remove 'module.' prefix
+                elif not k.startswith('module.') and isinstance(model, torch.nn.DataParallel):
+                    new_state_dict['module.' + k] = v  # add 'module.' prefix
+                else:
+                    new_state_dict[k] = v
+            model.load_state_dict(new_state_dict)
         optimizer.load_state_dict(state["optimizer_state_dict"])
         starting_step = state["train_step"]
         for i in range(state["train_step"] + 1):
             curriculum.update()
 
-    n_dims = model.n_dims
+    # Access model attributes correctly (handle DataParallel wrapper)
+    base_model = model.module if isinstance(model, torch.nn.DataParallel) else model
+    n_dims = base_model.n_dims
     bsize = args.training.batch_size
     data_sampler = get_data_sampler(args.training.data, n_dims=n_dims)
     task_sampler = get_task_sampler(
@@ -153,6 +169,12 @@ def main(args):
 
     model = build_model(args.model)
     model.cuda()
+    
+    # Enable multi-GPU training with DataParallel
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs for training")
+        model = torch.nn.DataParallel(model)
+    
     model.train()
 
     train(model, args)

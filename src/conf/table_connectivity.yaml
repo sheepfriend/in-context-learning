@@ -4,6 +4,7 @@ inherit:
 training:
     task: table_connectivity
     task_kwargs: {"V": 5, "C": 3, "rho": 0.5}
+    batch_size: 256  # Optimized for 4 GPUs (64 per GPU)
     curriculum:
         points:
             start: 11

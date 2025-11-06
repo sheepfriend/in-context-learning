@@ -428,6 +428,36 @@ class TableConnectivity(Task):
             self.graphs.append(G)
             self.table_columns.append(table_cols)
             self.shared_columns.append(shared_cols)
+        
+        # Precompute connectivity for efficiency
+        self._precompute_connectivity()
+    
+    def _precompute_connectivity(self):
+        """Precompute column connectivity for fast lookup."""
+        self.connectivity_cache = []
+        for i in range(len(self.graphs)):
+            G = self.graphs[i]
+            table_cols = self.table_columns[i]
+            
+            # Build column-to-tables mapping
+            col_to_tables = {}
+            for table_id, cols in table_cols.items():
+                for col in cols:
+                    if col not in col_to_tables:
+                        col_to_tables[col] = []
+                    col_to_tables[col].append(table_id)
+            
+            # Precompute all-pairs shortest paths for the graph
+            # This allows O(1) connectivity checks
+            try:
+                path_lengths = dict(nx.all_pairs_shortest_path_length(G))
+            except:
+                path_lengths = {}
+            
+            self.connectivity_cache.append({
+                'col_to_tables': col_to_tables,
+                'path_lengths': path_lengths
+            })
     
     def evaluate(self, xs_b):
         """
@@ -446,24 +476,26 @@ class TableConnectivity(Task):
         ys_b = torch.zeros(batch_size, num_queries, device=xs_b.device)
         
         for i in range(batch_size):
-            G = self.graphs[i] if i < len(self.graphs) else self.graphs[0]
-            table_cols = self.table_columns[i] if i < len(self.table_columns) else self.table_columns[0]
+            cache_idx = i if i < len(self.connectivity_cache) else 0
+            cache = self.connectivity_cache[cache_idx]
+            col_to_tables = cache['col_to_tables']
+            path_lengths = cache['path_lengths']
             
             for j in range(num_queries):
                 # Extract query column pair from last 2 dimensions
-                # Assuming xs_b[i, j, -2] and xs_b[i, j, -1] encode the column IDs
                 col1 = int(xs_b[i, j, -2].item())
                 col2 = int(xs_b[i, j, -1].item())
                 
-                # Find which tables contain these columns
-                tables_with_col1 = [t for t, cols in table_cols.items() if col1 in cols]
-                tables_with_col2 = [t for t, cols in table_cols.items() if col2 in cols]
+                # Find which tables contain these columns using cached mapping
+                tables_with_col1 = col_to_tables.get(col1, [])
+                tables_with_col2 = col_to_tables.get(col2, [])
                 
-                # Check if any pair of tables (one from each set) is connected in the graph
+                # Check if any pair of tables (one from each set) is connected
                 connected = False
                 for t1 in tables_with_col1:
                     for t2 in tables_with_col2:
-                        if t1 == t2 or nx.has_path(G, t1, t2):
+                        # Check connectivity using precomputed paths
+                        if t1 == t2 or (t1 in path_lengths and t2 in path_lengths.get(t1, {})):
                             connected = True
                             break
                     if connected:
