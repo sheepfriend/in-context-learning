@@ -431,6 +431,10 @@ class TableConnectivity(Task):
         
         # Precompute connectivity for efficiency
         self._precompute_connectivity()
+        
+        # Clean up NetworkX graphs to avoid serialization issues with DataParallel
+        # All needed information is now in connectivity_cache
+        del self.graphs
     
     def _precompute_connectivity(self):
         """Precompute column connectivity for fast lookup."""
@@ -447,16 +451,17 @@ class TableConnectivity(Task):
                         col_to_tables[col] = []
                     col_to_tables[col].append(table_id)
             
-            # Precompute all-pairs shortest paths for the graph
-            # This allows O(1) connectivity checks
-            try:
-                path_lengths = dict(nx.all_pairs_shortest_path_length(G))
-            except:
-                path_lengths = {}
+            # Precompute connectivity as a simple set of (node1, node2) pairs
+            # This is easily serializable for DataParallel
+            connected_pairs = set()
+            for node1 in G.nodes():
+                for node2 in G.nodes():
+                    if node1 == node2 or nx.has_path(G, node1, node2):
+                        connected_pairs.add((node1, node2))
             
             self.connectivity_cache.append({
                 'col_to_tables': col_to_tables,
-                'path_lengths': path_lengths
+                'connected_pairs': connected_pairs
             })
     
     def evaluate(self, xs_b):
@@ -479,7 +484,7 @@ class TableConnectivity(Task):
             cache_idx = i if i < len(self.connectivity_cache) else 0
             cache = self.connectivity_cache[cache_idx]
             col_to_tables = cache['col_to_tables']
-            path_lengths = cache['path_lengths']
+            connected_pairs = cache['connected_pairs']
             
             for j in range(num_queries):
                 # Extract query column pair from last 2 dimensions
@@ -494,8 +499,8 @@ class TableConnectivity(Task):
                 connected = False
                 for t1 in tables_with_col1:
                     for t2 in tables_with_col2:
-                        # Check connectivity using precomputed paths
-                        if t1 == t2 or (t1 in path_lengths and t2 in path_lengths.get(t1, {})):
+                        # Check connectivity using precomputed pairs (O(1) lookup)
+                        if (t1, t2) in connected_pairs:
                             connected = True
                             break
                     if connected:
