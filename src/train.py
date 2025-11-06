@@ -169,12 +169,14 @@ def main(args):
         )
 
     model = build_model(args.model)
-    model.cuda()
     
     # Enable multi-GPU training with DataParallel
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs for training")
         model = torch.nn.DataParallel(model)
+        model.cuda()  # Move DataParallel model to GPUs
+    else:
+        model.cuda()  # Single GPU
     
     model.train()
 
