@@ -82,6 +82,14 @@ class TableConnectivitySampler(DataSampler):
         self.total_columns = V * C
         self.bias = bias
         self.scale = scale
+        
+        # Generate fixed random vectors for each table name and column name
+        # Table names: 0 to V-1
+        self.table_embeddings = torch.randn(V, n_dims - 1)
+        # Column names: 0 to total_columns-1
+        self.column_embeddings = torch.randn(self.total_columns, n_dims - 1)
+        # Separator embedding
+        self.separator_embedding = torch.randn(n_dims - 1)
 
     def sample_xs(self, n_points, b_size, n_dims_truncated=None, seeds=None):
         """
@@ -140,31 +148,22 @@ class TableConnectivitySampler(DataSampler):
             # Encode schema: table_name | col1 | col2 | ... | colC | table_name | ...
             row_idx = 0
             for table_id in range(self.V):
-                # Encode table name
+                # Encode table name using fixed random vector
                 if row_idx < n_points:
-                    if seeds is not None:
-                        xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1, generator=generator)
-                    else:
-                        xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1)
+                    xs_b[i, row_idx, :-1] = self.table_embeddings[table_id]
                     xs_b[i, row_idx, -1] = 1000 + table_id  # Table name encoding
                     row_idx += 1
                 
-                # Encode columns of this table
+                # Encode columns of this table using fixed random vectors
                 for col_id in table_cols[table_id]:
                     if row_idx < n_points:
-                        if seeds is not None:
-                            xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1, generator=generator)
-                        else:
-                            xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1)
+                        xs_b[i, row_idx, :-1] = self.column_embeddings[col_id]
                         xs_b[i, row_idx, -1] = col_id  # Column name encoding
                         row_idx += 1
             
             # Insert separator between schema and queries (using 9999 as separator)
             if row_idx < n_points:
-                if seeds is not None:
-                    xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1, generator=generator)
-                else:
-                    xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1)
+                xs_b[i, row_idx, :-1] = self.separator_embedding
                 xs_b[i, row_idx, -1] = 9999  # Separator token
                 row_idx += 1
             
@@ -180,20 +179,14 @@ class TableConnectivitySampler(DataSampler):
                         col1 = torch.randint(0, self.total_columns, (1,)).item()
                         col2 = torch.randint(0, self.total_columns, (1,)).item()
                     
-                    # Encode query_col1
-                    if seeds is not None:
-                        xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1, generator=generator)
-                    else:
-                        xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1)
+                    # Encode query_col1 using fixed random vector
+                    xs_b[i, row_idx, :-1] = self.column_embeddings[col1]
                     xs_b[i, row_idx, -1] = col1
                     row_idx += 1
                     
-                    # Encode query_col2
+                    # Encode query_col2 using fixed random vector
                     if row_idx < n_points:
-                        if seeds is not None:
-                            xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1, generator=generator)
-                        else:
-                            xs_b[i, row_idx, :-1] = torch.randn(self.n_dims - 1)
+                        xs_b[i, row_idx, :-1] = self.column_embeddings[col2]
                         xs_b[i, row_idx, -1] = col2
                         row_idx += 1
         
