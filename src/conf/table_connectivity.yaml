@@ -6,7 +6,7 @@ training:
     task_kwargs: {"V": 5, "C": 3, "rho": 0.5}
     num_training_examples: 20
     data: table_connectivity  # Use custom sampler for table connectivity
-    batch_size: 256  # Optimized for 4 GPUs (64 per GPU)
+    batch_size: 20  # Optimized for 4 GPUs (64 per GPU)
     curriculum:
         points:
             start: 18
