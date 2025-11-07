@@ -9,9 +9,9 @@ training:
     batch_size: 256  # Optimized for 4 GPUs (64 per GPU)
     curriculum:
         points:
-            start: 11
-            end: 41
-            inc: 2
+            start: 18
+            end: 18
+            inc: 0
             interval: 2000
 
 out_dir: ../models/table_connectivity
