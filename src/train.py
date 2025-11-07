@@ -87,7 +87,7 @@ def train(model, args):
 
         loss_func = task.get_training_metric()
 
-        loss, output = train_step(model, xs[:,-1,:].cuda(), ys[:,-1,:].cuda(), optimizer, loss_func)
+        loss, output = train_step(model, xs[:,-1,:].cuda(), ys[:,-1].cuda(), optimizer, loss_func)
 
         point_wise_tags = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
