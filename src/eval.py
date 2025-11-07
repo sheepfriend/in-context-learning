@@ -127,12 +127,12 @@ def aggregate_metrics(metrics, bootstrap_trials=1000):
     """
     results = {}
     results["mean"] = metrics.mean()
-    results["std"] = metrics.std(unbiased=True)
-    n = len(metrics)
-    bootstrap_indices = torch.randint(n, size=(bootstrap_trials, n))
-    bootstrap_means = metrics[bootstrap_indices].mean().sort()
-    results["bootstrap_low"] = bootstrap_means[int(0.05 * bootstrap_trials)]
-    results["bootstrap_high"] = bootstrap_means[int(0.95 * bootstrap_trials)]
+    # results["std"] = metrics.std(unbiased=True)
+    # n = len(metrics)
+    # bootstrap_indices = torch.randint(n, size=(bootstrap_trials, n))
+    # bootstrap_means = metrics[bootstrap_indices].mean().sort()
+    # results["bootstrap_low"] = bootstrap_means[int(0.05 * bootstrap_trials)]
+    # results["bootstrap_high"] = bootstrap_means[int(0.95 * bootstrap_trials)]
 
     return {k: v.tolist() for k, v in results.items()}
 
