@@ -3,7 +3,7 @@ inherit:
 
 training:
     task: table_connectivity
-    task_kwargs: {"V": 2, "C": 1, "rho": 0.5}
+    task_kwargs: {"V": 10, "C": 3, "rho": 0.5}
     num_training_examples: 1024
     data: table_connectivity  # Use custom sampler for table connectivity
     batch_size: 256  # Optimized for 4 GPUs (64 per GPU)
@@ -13,6 +13,11 @@ training:
             end: 18
             inc: 0
             interval: 2000
+    learning_rate: 0.0001
+    save_every_steps: 1000
+    keep_every_steps: 1000
+    train_steps: 5001
+
 
 out_dir: ../models/table_connectivity
 
