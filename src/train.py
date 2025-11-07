@@ -153,6 +153,7 @@ def main(args):
             notes=args.wandb.notes,
             name=args.wandb.name,
             resume=True,
+            mode="disabled",  # Disable wandb
         )
 
     model = build_model(args.model)
