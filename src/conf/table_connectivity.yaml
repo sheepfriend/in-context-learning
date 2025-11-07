@@ -14,8 +14,8 @@ training:
             inc: 0
             interval: 2000
         dims:
-            start: 20
-            end: 20
+            start: 5
+            end: 5
             inc: 1
             interval: 2000
     learning_rate: 0.0001
