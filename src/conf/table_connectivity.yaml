@@ -4,7 +4,7 @@ inherit:
 training:
     task: table_connectivity
     task_kwargs: {"V": 5, "C": 3, "rho": 0.5}
-    num_training_examples: 1024
+    num_training_examples: 10000000000
     data: table_connectivity  # Use custom sampler for table connectivity
     batch_size: 256  # Optimized for 4 GPUs (64 per GPU)
     curriculum:
