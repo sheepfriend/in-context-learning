@@ -164,7 +164,7 @@ class TableConnectivitySampler(DataSampler):
             
             # Insert separator between schema and queries (using 9999 as separator)
             if row_idx < n_points:
-                xs_b[i, row_idx, :-1] = self.separator_embedding
+                xs_b[i, row_idx, :-1] = self.separator_embedding*0
                 xs_b[i, row_idx, -1] = 9999  # Separator token
                 row_idx += 1
             

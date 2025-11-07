@@ -473,7 +473,9 @@ class TableConnectivity(Task):
                 ys_b[i, j + 1] = 1.0 if connected else -1.0
                 j += 2  # Move to next query pair
         
-        return ys_b
+        xs_b[:, :, -1] = 0
+
+        return xs_b, ys_b
     
     @staticmethod
     def generate_pool_dict(n_dims, num_tasks, V=5, C=3, rho=0.5, **kwargs):
