@@ -171,6 +171,7 @@ class TableConnectivitySampler(DataSampler):
             
             # Encode queries: query_col1 | query_col2 | ...
             num_queries = (n_points - row_idx) // 2  # Each query takes 2 rows
+            print(num_queries)
             for q in range(num_queries):
                 if row_idx < n_points:
                     # Generate random query columns
