@@ -46,7 +46,7 @@ def eval_batch(model, task_sampler, xs, xs_p=None):
         device = "cpu"
 
     if xs_p is None:
-        ys = task.evaluate(xs)
+        xs, ys = task.evaluate(xs)
         pred = model(xs.to(device), ys.to(device)).detach()
         metrics = task.get_metric()(pred.cpu(), ys)
     else:
@@ -54,7 +54,7 @@ def eval_batch(model, task_sampler, xs, xs_p=None):
         metrics = torch.zeros(b_size, n_points)
         for i in range(n_points):
             xs_comb = torch.cat((xs[:, :i, :], xs_p[:, i:, :]), dim=1)
-            ys = task.evaluate(xs_comb)
+            xs_comb, ys = task.evaluate(xs_comb)
 
             pred = model(xs_comb.to(device), ys.to(device), inds=[i]).detach()
             metrics[:, i] = task.get_metric()(pred.cpu(), ys)[:, i]
