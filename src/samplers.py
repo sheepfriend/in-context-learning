@@ -107,7 +107,7 @@ class TableConnectivitySampler(DataSampler):
         """
         import networkx as nx
         
-        n_points = self.V * (self.C+1) + 2
+        n_points = self.V * (self.C+1) + 3
         xs_b = torch.zeros(b_size, n_points, self.n_dims)
         
         if seeds is None:
