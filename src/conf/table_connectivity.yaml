@@ -21,7 +21,7 @@ training:
     learning_rate: 0.0001
     save_every_steps: 1000
     keep_every_steps: 1000
-    train_steps: 5001
+    train_steps: 11
 
 
 out_dir: ../models/table_connectivity

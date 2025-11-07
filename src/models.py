@@ -28,6 +28,8 @@ def build_model(conf):
 
 def get_relevant_baselines(task_name):
     task_to_baselines = {
+        "table_connectivity": [
+        ],
         "linear_regression": [
             (LeastSquaresModel, {}),
             (NNModel, {"n_neighbors": 3}),
