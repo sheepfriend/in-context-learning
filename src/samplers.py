@@ -116,7 +116,7 @@ class TableConnectivitySampler(DataSampler):
             assert len(seeds) == b_size
         
         for i in range(b_size):
-            print(seeds[i])
+            # print(seeds[i])
             if seeds is not None:
                 generator.manual_seed(seeds[i])
                 import numpy as np
