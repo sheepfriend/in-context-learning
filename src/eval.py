@@ -127,6 +127,7 @@ def aggregate_metrics(metrics, bootstrap_trials=1000):
     """
     results = {}
     results["mean"] = metrics.mean()
+    print(metrics.mean())
     # results["std"] = metrics.std(unbiased=True)
     # n = len(metrics)
     # bootstrap_indices = torch.randint(n, size=(bootstrap_trials, n))
