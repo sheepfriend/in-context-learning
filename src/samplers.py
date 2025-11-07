@@ -115,15 +115,15 @@ class TableConnectivitySampler(DataSampler):
             generator = torch.Generator()
             assert len(seeds) == b_size
         
-        if seeds is not None:
-            generator.manual_seed(seeds)
-            import numpy as np
-            np.random.seed(seeds)
-
         for i in range(b_size):
+            print(seeds[i])
+            if seeds is not None:
+                generator.manual_seed(seeds[i])
+                import numpy as np
+                np.random.seed(seeds[i])
             
             # Generate graph
-            G = nx.erdos_renyi_graph(self.V, self.rho, seed=seeds if seeds else None)
+            G = nx.erdos_renyi_graph(self.V, self.rho, seed=seeds[i] if seeds else None)
             
             # Assign columns to tables
             table_cols = {}
