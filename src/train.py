@@ -29,9 +29,9 @@ def train_step(model, xs, ys, optimizer, loss_func):
 
 
 def sample_seeds(total_seeds, count):
-    seeds = set()
+    seeds = []
     while len(seeds) < count:
-        seeds.add(randint(0, total_seeds - 1))
+        seeds.append(randint(0, total_seeds - 1))
     return seeds
 
 
