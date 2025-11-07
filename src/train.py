@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = True
 def train_step(model, xs, ys, optimizer, loss_func):
     optimizer.zero_grad()
     output = model(xs, ys)
-    loss = loss_func(output, ys)
+    loss = loss_func(output[:,-1,:], ys[:,-1])
     loss.backward()
     optimizer.step()
     return loss.detach().item(), output.detach()
@@ -87,7 +87,7 @@ def train(model, args):
 
         loss_func = task.get_training_metric()
 
-        loss, output = train_step(model, xs[:,-1,:].cuda(), ys[:,-1].cuda(), optimizer, loss_func)
+        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func)
 
         point_wise_tags = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
