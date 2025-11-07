@@ -58,7 +58,7 @@ def eval_batch(model, task_sampler, xs, xs_p=None):
 
             pred = model(xs_comb.to(device), ys.to(device), inds=[i]).detach()
             metrics[:, i] = task.get_metric()(pred.cpu(), ys)[:, i]
-
+    print(metrics)
     return metrics
 
 
