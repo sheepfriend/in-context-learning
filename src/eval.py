@@ -49,7 +49,7 @@ def eval_batch(model, task_sampler, xs, xs_p=None):
     pred = model(xs.to(device), ys.to(device)).detach()
     metrics = task.get_metric()(pred.cpu(), ys)[:,-1]
 
-    print(metrics.mean(),  (ys[:,-1].sign()==1).mean())
+    print(metrics.mean(),  ((ys[:,-1].sign()==1)+0.).mean())
     return metrics
 
 
