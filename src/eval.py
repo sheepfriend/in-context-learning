@@ -195,7 +195,7 @@ def build_evals(conf):
         "batch_size": batch_size,
         "data_name": data_name,
         "prompting_strategy": "standard",
-        "task_sampler_kwargs": con.training.task_sampler_kwargs,
+        "task_sampler_kwargs": conf.training.task_sampler_kwargs,
     }
 
     evaluation_kwargs = {}
