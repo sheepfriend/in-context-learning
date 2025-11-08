@@ -19,9 +19,9 @@ os.chdir(src_dir)
 
 # Experiment parameters
 V_VALUES = [5, 20]
-NUM_EXAMPLES = [256, 512, 1024, 2048, 4096]
+NUM_EXAMPLES = [2**i for i in range(10,16)]
 MODEL_TYPES = ["lowrank_gpt2","gpt2"]
-NUM_RUNS = 3
+NUM_RUNS = 1
 
 # Base config files
 BASE_CONFIG = "conf/table_connectivity.yaml"
