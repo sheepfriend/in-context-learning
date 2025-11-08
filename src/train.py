@@ -24,7 +24,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
     output = model(xs, ys)
     loss = loss_func(output[:,-1], ys[:,-1])
     if print_loss:
-        print((output[:,-1].sign()==ys[:,-1].sign()).mean())
+        print(((output[:,-1].sign()==ys[:,-1].sign())+0.0).mean())
     loss.backward()
     optimizer.step()
     return loss.detach().item(), output.detach()
