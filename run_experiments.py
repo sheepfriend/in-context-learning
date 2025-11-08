@@ -18,7 +18,7 @@ os.chdir(src_dir)
 
 # Experiment parameters
 V_VALUES = [5, 20]
-NUM_EXAMPLES = [256, 1000000]
+NUM_EXAMPLES = [1000000, 256]
 NUM_RUNS = 5
 
 # Base config file

@@ -146,6 +146,15 @@ def train(model, args, test=False):
             and i > 0
         ):
             torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
+    
+    xs = data_sampler.sample_xs(
+            curriculum.n_points,
+            bsize,
+            curriculum.n_dims_truncated,
+            **data_sampler_args,
+        )
+    task = task_sampler(**task_sampler_args)
+    xs, ys = task.evaluate(xs)
 
 
 def main(args):
@@ -171,7 +180,6 @@ def main(args):
     model.train()
 
     train(model, args)
-    train(model, args, test=True)
 
     if not args.test_run:
         _ = get_run_metrics(args.out_dir)  # precompute metrics for eval
