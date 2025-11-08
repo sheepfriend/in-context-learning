@@ -56,7 +56,7 @@ def eval_batch(model, task_sampler, xs, xs_p=None):
 
 def gen_standard(data_sampler, n_points, b_size):
     xs = data_sampler.sample_xs(n_points, b_size)
-
+    print(xs.shape)
     return xs, None
 
 
