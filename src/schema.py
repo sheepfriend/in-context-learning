@@ -14,12 +14,14 @@ from funcy import merge
 
 
 model_schema = {
-    "family": merge(tstring, allowed(["gpt2", "lstm"])),
+    "family": merge(tstring, allowed(["gpt2", "lstm", "lowrank_gpt2"])),
     "n_positions": merge(tinteger, required),  # maximum context length
     "n_dims": merge(tinteger, required),  # latent dimension
     "n_embd": merge(tinteger, required),
     "n_layer": merge(tinteger, required),
     "n_head": merge(tinteger, required),
+    "V": merge(tinteger, nullable, default(20)),  # number of blocks (for lowrank_gpt2)
+    "C": merge(tinteger, nullable, default(3)),   # block size (for lowrank_gpt2)
 }
 
 curriculum_base_schema = {
