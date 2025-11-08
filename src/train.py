@@ -24,7 +24,9 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
     output = model(xs, ys)
     loss = loss_func(output[:,-1], ys[:,-1])
     if print_loss:
-        print(((output[:,-1].sign()==ys[:,-1].sign())+0.0).mean())
+        print("Acc:", ((output[:,-1].sign()==ys[:,-1].sign())+0.0).mean())
+        print("P(y=1):", ((ys[:,-1].sign()==1)+0.0).mean())
+        print("P(hat_y=1):", ((output[:,-1].sign()==1)+0.0).mean())
     loss.backward()
     optimizer.step()
     return loss.detach().item(), output.detach()
@@ -37,7 +39,7 @@ def sample_seeds(total_seeds, count):
     return seeds
 
 
-def train(model, args):
+def train(model, args, test=False):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
     curriculum = Curriculum(args.training.curriculum)
 
@@ -72,7 +74,7 @@ def train(model, args):
 
         if "sparse" in args.training.task:
             task_sampler_args["valid_coords"] = curriculum.n_dims_truncated
-        if num_training_examples is not None:
+        if num_training_examples is not None and not test:
             assert num_training_examples >= bsize
             seeds = sample_seeds(num_training_examples, bsize)
             data_sampler_args["seeds"] = seeds
@@ -96,6 +98,9 @@ def train(model, args):
         else:
             print_loss = False
         loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss)
+
+        if test:
+            exit()
 
         point_wise_tags = list(range(curriculum.n_points))
         point_wise_loss_func = task.get_metric()
@@ -166,6 +171,7 @@ def main(args):
     model.train()
 
     train(model, args)
+    train(model, args, test=True)
 
     if not args.test_run:
         _ = get_run_metrics(args.out_dir)  # precompute metrics for eval
