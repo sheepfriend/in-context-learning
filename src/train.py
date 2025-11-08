@@ -147,6 +147,7 @@ def train(model, args, test=False):
         ):
             torch.save(model.state_dict(), os.path.join(args.out_dir, f"model_{i}.pt"))
     
+    print("Testing...")
     data_sampler_args["seeds"] = None
     xs = data_sampler.sample_xs(
             curriculum.n_points,
