@@ -124,7 +124,7 @@ class TransformerModel(nn.Module):
         embeds = self._read_in(xs)
         output = self._backbone(inputs_embeds=embeds).last_hidden_state
         prediction = self._read_out(output)
-        return prediction[:, -1, 0]  # predict only on xs
+        return prediction[:, :, 0]  # predict only on xs
 
 
 class LowRankTransformerModel(nn.Module):
@@ -269,7 +269,7 @@ class LowRankTransformerModel(nn.Module):
         output = self._apply_custom_attention(embeds)
         
         prediction = self._read_out(output)
-        return prediction[:, -1, 0]  # predict only on xs
+        return prediction[:, :, 0]  # predict only on xs
 
 
 class NNModel:
