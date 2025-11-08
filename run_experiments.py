@@ -18,10 +18,10 @@ src_dir = Path(__file__).parent / "src"
 os.chdir(src_dir)
 
 # Experiment parameters
-V_VALUES = [5, 20]
-NUM_EXAMPLES = [2**i for i in range(10,16)]
+V_VALUES = [5]
+NUM_EXAMPLES = [2**i for i in range(14,17)]
 MODEL_TYPES = ["lowrank_gpt2","gpt2"]
-NUM_RUNS = 1
+NUM_RUNS = 5
 
 # Base config files
 BASE_CONFIG = "conf/table_connectivity.yaml"
