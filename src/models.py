@@ -20,6 +20,19 @@ def build_model(conf):
             n_layer=conf.n_layer,
             n_head=conf.n_head,
         )
+    elif conf.family == "lowrank_gpt2":
+        # Extract V and C from task_kwargs if available
+        V = getattr(conf, 'V', 20)
+        C = getattr(conf, 'C', 3)
+        model = LowRankTransformerModel(
+            n_dims=conf.n_dims,
+            n_positions=conf.n_positions,
+            n_embd=conf.n_embd,
+            n_layer=conf.n_layer,
+            n_head=conf.n_head,
+            V=V,
+            C=C,
+        )
     else:
         raise NotImplementedError
 
@@ -125,6 +138,167 @@ class TransformerModel(nn.Module):
         zs = self._combine(xs, ys)
         embeds = self._read_in(zs)
         output = self._backbone(inputs_embeds=embeds).last_hidden_state
+        prediction = self._read_out(output)
+        return prediction[:, ::2, 0][:, inds]  # predict only on xs
+
+
+class LowRankTransformerModel(nn.Module):
+    """
+    Transformer with low-rank positional embeddings and custom attention masks.
+    
+    Positional embedding structure:
+    - First V*(C+1) positions: share a single learned embedding of length C+1, repeated V times
+    - Last 3 positions: have independent learned embeddings
+    
+    Attention mask structure:
+    - First 2 layers: Each group of C+1 tokens attend to each other (block diagonal),
+                      last 3 tokens attend to themselves only
+    - Remaining layers: Last token of each C+1 group and the last 3 tokens attend to each other
+    """
+    def __init__(self, n_dims, n_positions, n_embd=128, n_layer=12, n_head=4, V=20, C=3):
+        super(LowRankTransformerModel, self).__init__()
+        self.V = V
+        self.C = C
+        self.n_embd = n_embd
+        self.n_layer = n_layer
+        self.n_head = n_head
+        
+        # Expected sequence length: V*(C+1) + 3
+        self.seq_len = V * (C + 1) + 3
+        
+        configuration = GPT2Config(
+            n_positions=2 * n_positions,
+            n_embd=n_embd,
+            n_layer=n_layer,
+            n_head=n_head,
+            resid_pdrop=0.0,
+            embd_pdrop=0.0,
+            attn_pdrop=0.0,
+            use_cache=False,
+        )
+        self.name = f"lowrank_gpt2_embd={n_embd}_layer={n_layer}_head={n_head}_V={V}_C={C}"
+
+        self.n_positions = n_positions
+        self.n_dims = n_dims
+        self._read_in = nn.Linear(n_dims, n_embd)
+        self._backbone = GPT2Model(configuration)
+        self._read_out = nn.Linear(n_embd, 1)
+        
+        # Low-rank positional embeddings
+        # One shared embedding for the repeated pattern of length C+1
+        self.pos_emb_shared = nn.Parameter(torch.randn(C + 1, n_embd) * 0.02)
+        # Three independent embeddings for the last 3 positions
+        self.pos_emb_last3 = nn.Parameter(torch.randn(3, n_embd) * 0.02)
+        
+        # Disable the default positional embeddings in GPT2
+        # We'll add our custom ones manually
+        self._backbone.wpe.weight.requires_grad = False
+        
+        # Create attention masks for different layers
+        self._register_attention_masks()
+
+    def _register_attention_masks(self):
+        """Create and register attention masks for different layers."""
+        # Mask for first 2 layers: block diagonal + last 3 tokens
+        mask_first_layers = torch.zeros(self.seq_len, self.seq_len)
+        
+        # Each C+1 group attends to itself
+        for i in range(self.V):
+            start = i * (self.C + 1)
+            end = start + (self.C + 1)
+            mask_first_layers[start:end, start:end] = 1
+        
+        # Last 3 tokens attend to themselves
+        mask_first_layers[-3, -3] = 1
+        mask_first_layers[-2, -2] = 1
+        mask_first_layers[-1, -1] = 1
+        
+        # Mask for remaining layers: last token of each group + last 3 tokens
+        mask_remaining_layers = torch.zeros(self.seq_len, self.seq_len)
+        
+        # Collect indices of last tokens in each C+1 group
+        last_token_indices = [(i + 1) * (self.C + 1) - 1 for i in range(self.V)]
+        last_token_indices.extend([self.seq_len - 3, self.seq_len - 2, self.seq_len - 1])
+        
+        # These tokens can all attend to each other
+        for i in last_token_indices:
+            for j in last_token_indices:
+                mask_remaining_layers[i, j] = 1
+        
+        # Convert to attention mask format (0 = attend, -inf = mask)
+        # We need to invert: 1 -> 0 (can attend), 0 -> -inf (cannot attend)
+        self.mask_first_layers = (1 - mask_first_layers) * -1e9
+        self.mask_remaining_layers = (1 - mask_remaining_layers) * -1e9
+        
+    def _get_low_rank_pos_embeddings(self, seq_len):
+        """Generate low-rank positional embeddings."""
+        # For the first V*(C+1) positions, repeat the shared embedding
+        pos_emb_repeated = self.pos_emb_shared.repeat(self.V, 1)  # [V*(C+1), n_embd]
+        
+        # Concatenate with the last 3 independent embeddings
+        pos_emb = torch.cat([pos_emb_repeated, self.pos_emb_last3], dim=0)  # [V*(C+1)+3, n_embd]
+        
+        return pos_emb[:seq_len]  # Truncate if needed
+    
+    def _apply_custom_attention(self, embeds):
+        """Apply transformer with custom attention masks."""
+        # Get position embeddings and add to input embeddings
+        seq_len = embeds.shape[1]
+        pos_emb = self._get_low_rank_pos_embeddings(seq_len)
+        embeds = embeds + pos_emb.unsqueeze(0)
+        
+        # We need to manually pass through transformer layers with custom masks
+        # For simplicity, we'll modify the GPT2 model's forward pass
+        # This requires accessing internal layers
+        
+        hidden_states = embeds
+        for i, block in enumerate(self._backbone.h):
+            # Choose mask based on layer index
+            if i < 2:
+                attn_mask = self.mask_first_layers[:seq_len, :seq_len].to(embeds.device)
+            else:
+                attn_mask = self.mask_remaining_layers[:seq_len, :seq_len].to(embeds.device)
+            
+            # Expand mask for batch and heads: [batch, 1, seq_len, seq_len]
+            attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
+            
+            # Apply transformer block with custom attention mask
+            outputs = block(hidden_states, attention_mask=attn_mask)
+            hidden_states = outputs[0]
+        
+        # Apply final layer norm
+        hidden_states = self._backbone.ln_f(hidden_states)
+        
+        return hidden_states
+
+    @staticmethod
+    def _combine(xs_b, ys_b):
+        """Interleaves the x's and the y's into a single sequence."""
+        bsize, points, dim = xs_b.shape
+        ys_b_wide = torch.cat(
+            (
+                ys_b.view(bsize, points, 1),
+                torch.zeros(bsize, points, dim - 1, device=ys_b.device),
+            ),
+            axis=2,
+        )
+        zs = torch.stack((xs_b, ys_b_wide), dim=2)
+        zs = zs.view(bsize, 2 * points, dim)
+        return zs
+
+    def forward(self, xs, ys, inds=None):
+        if inds is None:
+            inds = torch.arange(ys.shape[1])
+        else:
+            inds = torch.tensor(inds)
+            if max(inds) >= ys.shape[1] or min(inds) < 0:
+                raise ValueError("inds contain indices where xs and ys are not defined")
+        zs = self._combine(xs, ys)
+        embeds = self._read_in(zs)
+        
+        # Use custom attention with low-rank positional embeddings
+        output = self._apply_custom_attention(embeds)
+        
         prediction = self._read_out(output)
         return prediction[:, ::2, 0][:, inds]  # predict only on xs
 
