@@ -56,7 +56,7 @@ def eval_batch(model, task_sampler, xs, xs_p=None):
 
 def gen_standard(data_sampler, n_points, b_size):
     xs = data_sampler.sample_xs(n_points, b_size)
-    print(xs.shape)
+    # print(xs.shape)
     return xs, None
 
 
@@ -160,7 +160,8 @@ def eval_model(
     """
 
     assert num_eval_examples % batch_size == 0
-    data_sampler = get_data_sampler(data_name, n_dims, **data_sampler_kwargs)
+    # data_sampler = get_data_sampler(args.training.data, n_dims=n_dims, **args.training.task_kwargs)
+    data_sampler = get_data_sampler(data_name, n_dims, **data_sampler_kwargs,**task_sampler_kwargs)
     task_sampler = get_task_sampler(
         task_name, n_dims, batch_size, **task_sampler_kwargs
     )
@@ -194,6 +195,7 @@ def build_evals(conf):
         "batch_size": batch_size,
         "data_name": data_name,
         "prompting_strategy": "standard",
+        "task_sampler_kwargs": con.training.task_sampler_kwargs,
     }
 
     evaluation_kwargs = {}

@@ -109,8 +109,6 @@ class TableConnectivitySampler(DataSampler):
         
         n_points = self.V * (self.C+1) + 3
         xs_b = torch.zeros(b_size, n_points, self.n_dims)
-        print(self.V,self.C,self.rho)
-        print(xs_b.shape)
         if seeds is None:
             generator = None
         else:
