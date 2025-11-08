@@ -157,7 +157,7 @@ def train(model, args, test=False):
         )
     task = task_sampler(**task_sampler_args)
     xs, ys = task.evaluate(xs)
-
+    loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True)
 
 def main(args):
     if args.test_run:
