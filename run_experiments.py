@@ -20,7 +20,7 @@ os.chdir(src_dir)
 # Experiment parameters
 V_VALUES = [5, 20]
 NUM_EXAMPLES = [256, 512, 1024, 2048, 4096]
-MODEL_TYPES = ["gpt2", "lowrank_gpt2"]
+MODEL_TYPES = ["lowrank_gpt2","gpt2"]
 NUM_RUNS = 3
 
 # Base config files
