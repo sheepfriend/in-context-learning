@@ -21,10 +21,10 @@ src_dir = Path(__file__).parent / "src"
 os.chdir(src_dir)
 
 # Experiment parameters
-V_VALUES = [5, 20]
+V_VALUES = [5]
 NUM_EXAMPLES = [2**i for i in range(14,17)]
 MODEL_TYPES = ["lowrank_gpt2","gpt2"]
-NUM_RUNS = 5
+NUM_RUNS = 20
 NUM_GPUS = 4  # 使用4个GPU
 
 # Base config files
