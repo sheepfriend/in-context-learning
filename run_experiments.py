@@ -24,7 +24,7 @@ os.chdir(src_dir)
 V_VALUES = [5]
 NUM_EXAMPLES = [2**i for i in range(15,19)]
 MODEL_TYPES = ["gpt2_fixed", "lowrank_gpt2_fixed"]
-NUM_RUNS = 20
+NUM_RUNS = 5
 NUM_GPUS = 4  # 使用4个GPU
 
 # Base config files
