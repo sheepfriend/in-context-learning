@@ -8,12 +8,12 @@ model:
     n_embd: 256
     n_layer: 12
     n_head: 8
-    V: 20
+    V: 5
     C: 3
 
 training:
     task: table_connectivity
-    task_kwargs: {"V": 20, "C": 3, "rho": 0.5}
+    task_kwargs: {"V": 5, "C": 3, "rho": 0.5}
     num_training_examples: 1000000
     data: table_connectivity_fixed  # Use fixed embedding sampler
     batch_size: 256  # Optimized for 4 GPUs (64 per GPU)
