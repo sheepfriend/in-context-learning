@@ -66,17 +66,36 @@ def parse_log_file(log_file):
 
 def parse_filename(log_file):
     """Extract experiment parameters from log filename"""
-    # Expected format: table_connectivity_{standard|lowrank}_V{V}_N{num_examples}_run{run_idx}_gpu{gpu_id}.log
+    # Expected format: table_connectivity_{standard|lowrank}_{fixed|random}_V{V}_N{num_examples}_run{run_idx}_gpu{gpu_id}.log
     filename = log_file.stem  # Remove .log extension
     
-    pattern = r"table_connectivity_(standard|lowrank)_V(\d+)_N(\d+)_run(\d+)_gpu(\d+)"
+    pattern = r"table_connectivity_(standard|lowrank)_(fixed|random)_V(\d+)_N(\d+)_run(\d+)_gpu(\d+)"
     match = re.match(pattern, filename)
     
     if match:
-        model_tag, V, num_examples, run_idx, gpu_id = match.groups()
+        model_tag, sampler_tag, V, num_examples, run_idx, gpu_id = match.groups()
+        
+        # Determine model type
+        is_lowrank = (model_tag == 'lowrank')
+        is_fixed = (sampler_tag == 'fixed')
+        
+        if is_lowrank and is_fixed:
+            model_type = 'lowrank_gpt2_fixed'
+            model_name = 'Low-Rank-Fixed'
+        elif is_lowrank:
+            model_type = 'lowrank_gpt2'
+            model_name = 'Low-Rank'
+        elif is_fixed:
+            model_type = 'gpt2_fixed'
+            model_name = 'Standard-Fixed'
+        else:
+            model_type = 'gpt2'
+            model_name = 'Standard'
+        
         return {
-            'model_type': 'gpt2' if model_tag == 'standard' else 'lowrank_gpt2',
-            'model_name': 'Standard' if model_tag == 'standard' else 'Low-Rank',
+            'model_type': model_type,
+            'model_name': model_name,
+            'sampler_type': sampler_tag,
             'V': int(V),
             'num_examples': int(num_examples),
             'run_idx': int(run_idx),
@@ -118,7 +137,7 @@ def create_summary_table(df):
     return pd.DataFrame(summary_rows)
 
 def create_comparison_table(df):
-    """Create comparison table between Low-Rank and Standard models"""
+    """Create comparison table between all model variants"""
     summary = create_summary_table(df)
     
     comparison_rows = []
@@ -127,21 +146,22 @@ def create_comparison_table(df):
     
     for V in V_values:
         for num_examples in num_examples_values:
-            lowrank = summary[(summary['V'] == V) & 
-                             (summary['num_examples'] == num_examples) & 
-                             (summary['model'] == 'Low-Rank')]
-            standard = summary[(summary['V'] == V) & 
-                              (summary['num_examples'] == num_examples) & 
-                              (summary['model'] == 'Standard')]
+            row_data = {'V': V, 'N': num_examples}
             
-            if not lowrank.empty and not standard.empty:
-                comparison_rows.append({
-                    'V': V,
-                    'N': num_examples,
-                    'Low-Rank Acc': f"{lowrank['test_acc_mean'].iloc[0]:.4f}±{lowrank['test_acc_std'].iloc[0]:.4f}",
-                    'Standard Acc': f"{standard['test_acc_mean'].iloc[0]:.4f}±{standard['test_acc_std'].iloc[0]:.4f}",
-                    'Diff': lowrank['test_acc_mean'].iloc[0] - standard['test_acc_mean'].iloc[0],
-                })
+            # Get each model type
+            for model_name in ['Standard', 'Standard-Fixed', 'Low-Rank', 'Low-Rank-Fixed']:
+                subset = summary[(summary['V'] == V) & 
+                                (summary['num_examples'] == num_examples) & 
+                                (summary['model'] == model_name)]
+                
+                if not subset.empty:
+                    mean_acc = subset['test_acc_mean'].iloc[0]
+                    std_acc = subset['test_acc_std'].iloc[0]
+                    row_data[model_name] = f"{mean_acc:.4f}±{std_acc:.4f}"
+                else:
+                    row_data[model_name] = "N/A"
+            
+            comparison_rows.append(row_data)
     
     df_comp = pd.DataFrame(comparison_rows)
     if not df_comp.empty:

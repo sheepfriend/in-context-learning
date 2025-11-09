@@ -23,13 +23,15 @@ os.chdir(src_dir)
 # Experiment parameters
 V_VALUES = [5]
 NUM_EXAMPLES = [2**i for i in range(15,19)]
-MODEL_TYPES = ["lowrank_gpt2","gpt2"]
+MODEL_TYPES = ["gpt2", "gpt2_fixed", "lowrank_gpt2", "lowrank_gpt2_fixed"]
 NUM_RUNS = 20
 NUM_GPUS = 4  # 使用4个GPU
 
 # Base config files
 BASE_CONFIG = "conf/table_connectivity.yaml"
+BASE_CONFIG_FIXED = "conf/table_connectivity_fixed.yaml"
 LOWRANK_CONFIG = "conf/table_connectivity_lowrank.yaml"
+LOWRANK_CONFIG_FIXED = "conf/table_connectivity_lowrank_fixed.yaml"
 
 # Create logs directory
 LOGS_DIR = Path("../logs")
@@ -38,18 +40,31 @@ LOGS_DIR.mkdir(exist_ok=True)
 def run_experiment(V, num_examples, model_type, run_idx, gpu_id):
     """Run a single experiment with specified parameters on a specific GPU"""
     
-    # Create a unique run name
-    model_tag = "lowrank" if model_type == "lowrank_gpt2" else "standard"
-    run_name = f"table_connectivity_{model_tag}_V{V}_N{num_examples}_run{run_idx}"
+    # Determine model tag and sampler type
+    is_lowrank = "lowrank" in model_type
+    is_fixed = "fixed" in model_type
+    
+    model_tag = "lowrank" if is_lowrank else "standard"
+    sampler_tag = "fixed" if is_fixed else "random"
+    
+    run_name = f"table_connectivity_{model_tag}_{sampler_tag}_V{V}_N{num_examples}_run{run_idx}"
     
     # Create log file for this experiment
     log_file = LOGS_DIR / f"{run_name}_gpu{gpu_id}.log"
     
-    print(f"\n[GPU {gpu_id}] Starting: V={V}, N={num_examples}, {model_tag}, run={run_idx}")
+    print(f"\n[GPU {gpu_id}] Starting: V={V}, N={num_examples}, {model_tag}, {sampler_tag}, run={run_idx}")
     print(f"[GPU {gpu_id}] Log file: {log_file}")
     
     # Load base config based on model type
-    base_config_file = LOWRANK_CONFIG if model_type == "lowrank_gpt2" else BASE_CONFIG
+    if model_type == "lowrank_gpt2":
+        base_config_file = LOWRANK_CONFIG
+    elif model_type == "lowrank_gpt2_fixed":
+        base_config_file = LOWRANK_CONFIG_FIXED
+    elif model_type == "gpt2_fixed":
+        base_config_file = BASE_CONFIG_FIXED
+    else:  # gpt2
+        base_config_file = BASE_CONFIG
+    
     with open(base_config_file, 'r') as f:
         config = yaml.safe_load(f)
     
@@ -59,7 +74,7 @@ def run_experiment(V, num_examples, model_type, run_idx, gpu_id):
     config['wandb']['name'] = run_name
     
     # For lowrank model, update V and C in model config
-    if model_type == "lowrank_gpt2":
+    if is_lowrank:
         config['model']['V'] = V
         config['model']['C'] = 3
         # Update n_positions based on V and C
