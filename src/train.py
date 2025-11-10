@@ -89,7 +89,7 @@ def train(model, args, test=False):
         task = task_sampler(**task_sampler_args)
         xs, ys = task.evaluate(xs)
 
-        # print(xs[0,:,:], ys[0,-1])
+        print(xs[0,:,:], ys[0,-1])
         # exit()
 
         loss_func = task.get_training_metric()
