@@ -1,0 +1,43 @@
+inherit: 
+    - base.yaml
+
+model:
+    family: autoregressive_gpt2
+    n_positions: 50  # schema_len (21) + max_path_len (15) + buffer
+    n_dims: 5
+    n_embd: 256
+    n_layer: 12
+    n_head: 8
+    V: 5
+    C: 3
+    vocab_size: 19  # [PAD, START, SEP, END] + 15 columns (V*C)
+    schema_len: 21  # V*(C+1) + 1 = 5*4+1 = 21
+
+training:
+    task: table_connectivity_autoregressive
+    task_kwargs: {"V": 5, "C": 3, "vocab_size": 19}
+    num_training_examples: 100000
+    data: table_connectivity_autoregressive
+    batch_size: 64
+    curriculum:
+        points:
+            start: 21  # Schema length
+            end: 21
+            inc: 0
+            interval: 2000
+        dims:
+            start: 5
+            end: 5
+            inc: 1
+            interval: 2000
+    learning_rate: 0.0001
+    save_every_steps: 100
+    keep_every_steps: 100
+    train_steps: 2001
+
+out_dir: ../models/table_connectivity_autoregressive
+
+wandb:
+    name: "table_connectivity_autoregressive"
+    notes: "Autoregressive path search with BFS training data"
+

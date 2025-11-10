@@ -14,14 +14,16 @@ from funcy import merge
 
 
 model_schema = {
-    "family": merge(tstring, allowed(["gpt2", "lstm", "lowrank_gpt2"])),
+    "family": merge(tstring, allowed(["gpt2", "lstm", "lowrank_gpt2", "autoregressive_gpt2"])),
     "n_positions": merge(tinteger, required),  # maximum context length
     "n_dims": merge(tinteger, required),  # latent dimension
     "n_embd": merge(tinteger, required),
     "n_layer": merge(tinteger, required),
     "n_head": merge(tinteger, required),
-    "V": merge(tinteger, nullable, default(20)),  # number of blocks (for lowrank_gpt2)
-    "C": merge(tinteger, nullable, default(3)),   # block size (for lowrank_gpt2)
+    "V": merge(tinteger, nullable, default(20)),  # number of blocks (for lowrank_gpt2 and autoregressive)
+    "C": merge(tinteger, nullable, default(3)),   # block size (for lowrank_gpt2 and autoregressive)
+    "vocab_size": merge(tinteger, nullable, default(None)),  # vocabulary size (for autoregressive)
+    "schema_len": merge(tinteger, nullable, default(None)),  # schema length (for autoregressive)
 }
 
 curriculum_base_schema = {
@@ -43,6 +45,7 @@ TASK_LIST = [
     "relu_2nn_regression",
     "decision_tree",
     "table_connectivity",
+    "table_connectivity_autoregressive",
 ]
 
 training_schema = {
@@ -50,7 +53,7 @@ training_schema = {
     "task_kwargs": merge(tdict, required),
     "num_tasks": merge(tinteger, nullable, default(None)),
     "num_training_examples": merge(tinteger, nullable, default(None)),
-    "data": merge(tstring, allowed(["gaussian", "table_connectivity", "table_connectivity_fixed"])),
+    "data": merge(tstring, allowed(["gaussian", "table_connectivity", "table_connectivity_fixed", "table_connectivity_autoregressive"])),
     "batch_size": merge(tinteger, default(64)),
     "learning_rate": merge(tfloat, default(3e-4)),
     "train_steps": merge(tinteger, default(1000)),
