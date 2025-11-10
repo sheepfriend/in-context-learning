@@ -175,13 +175,14 @@ def test(model, args):
 def main(args):
     """Main function."""
     
-    # Initialize wandb
+    # Initialize wandb (disabled mode)
     wandb.init(
         project=args.wandb.project,
         entity=args.wandb.entity,
         name=args.wandb.name,
         notes=args.wandb.notes,
         config=vars(args),
+        mode="disabled"  # Disable wandb
     )
     
     # Build model

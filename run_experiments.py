@@ -23,7 +23,7 @@ os.chdir(src_dir)
 # Experiment parameters
 V_VALUES = [3]
 NUM_EXAMPLES = [2**i for i in range(12,16)]
-MODEL_TYPES = ["gpt2", "lowrank_gpt2","gpt2_fixed", "lowrank_gpt2_fixed"]
+MODEL_TYPES = ["gpt2", "lowrank_gpt2", "gpt2_fixed", "lowrank_gpt2_fixed", "autoregressive_gpt2"]
 NUM_RUNS = 5
 NUM_GPUS = 4  # 使用4个GPU
 
@@ -32,6 +32,7 @@ BASE_CONFIG = "conf/table_connectivity.yaml"
 BASE_CONFIG_FIXED = "conf/table_connectivity_fixed.yaml"
 LOWRANK_CONFIG = "conf/table_connectivity_lowrank.yaml"
 LOWRANK_CONFIG_FIXED = "conf/table_connectivity_lowrank_fixed.yaml"
+AUTOREGRESSIVE_CONFIG = "conf/table_connectivity_autoregressive.yaml"
 
 # Create logs directory
 LOGS_DIR = Path("../logs")
@@ -43,9 +44,14 @@ def run_experiment(V, num_examples, model_type, run_idx, gpu_id):
     # Determine model tag and sampler type
     is_lowrank = "lowrank" in model_type
     is_fixed = "fixed" in model_type
+    is_autoregressive = "autoregressive" in model_type
     
-    model_tag = "lowrank" if is_lowrank else "standard"
-    sampler_tag = "fixed" if is_fixed else "random"
+    if is_autoregressive:
+        model_tag = "autoregressive"
+        sampler_tag = "auto"
+    else:
+        model_tag = "lowrank" if is_lowrank else "standard"
+        sampler_tag = "fixed" if is_fixed else "random"
     
     run_name = f"table_connectivity_{model_tag}_{sampler_tag}_V{V}_N{num_examples}_run{run_idx}"
     
@@ -56,7 +62,9 @@ def run_experiment(V, num_examples, model_type, run_idx, gpu_id):
     print(f"[GPU {gpu_id}] Log file: {log_file}")
     
     # Load base config based on model type
-    if model_type == "lowrank_gpt2":
+    if model_type == "autoregressive_gpt2":
+        base_config_file = AUTOREGRESSIVE_CONFIG
+    elif model_type == "lowrank_gpt2":
         base_config_file = LOWRANK_CONFIG
     elif model_type == "lowrank_gpt2_fixed":
         base_config_file = LOWRANK_CONFIG_FIXED
@@ -80,14 +88,28 @@ def run_experiment(V, num_examples, model_type, run_idx, gpu_id):
         # Update n_positions based on V and C
         config['model']['n_positions'] = V * (3 + 1) + 3  # V*(C+1)+3
     
+    # For autoregressive model, update V, C, vocab_size and schema_len
+    if is_autoregressive:
+        config['model']['V'] = V
+        config['model']['C'] = 3
+        config['model']['vocab_size'] = 4 + V * 3  # [PAD, START, SEP, END] + columns
+        config['model']['schema_len'] = V * (3 + 1) + 1  # V*(C+1) + 1 (separator)
+        config['training']['task_kwargs'] = {"V": V, "C": 3, "vocab_size": 4 + V * 3}
+    
     # Create temporary config file with unique name
     temp_config_path = f"conf/temp_config_{uuid.uuid4().hex[:8]}.yaml"
     with open(temp_config_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
     
     try:
+        # Choose training script based on model type
+        if is_autoregressive:
+            train_script = "train_autoregressive.py"
+        else:
+            train_script = "train.py"
+        
         # Run training with specific GPU
-        cmd = ["python", "train.py", "--config", temp_config_path]
+        cmd = ["python", train_script, "--config", temp_config_path]
         
         # Set environment to use specific GPU
         env = os.environ.copy()

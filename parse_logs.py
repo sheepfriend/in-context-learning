@@ -16,10 +16,15 @@ def parse_log_file(log_file):
         with open(log_file, 'r') as f:
             content = f.read()
         
-        # Regex patterns
+        # Regex patterns for standard models
         acc_pattern = r"Acc:\s+tensor\(([0-9.]+)(?:,\s+device='cuda:\d+')?\)"
         p_y1_pattern = r"P\(y=1\):\s+tensor\(([0-9.]+)(?:,\s+device='cuda:\d+')?\)"
         p_hat_pattern = r"P\(hat_y=1\):\s+tensor\(([0-9.]+)(?:,\s+device='cuda:\d+')?\)"
+        
+        # Regex patterns for autoregressive models
+        label_acc_pattern = r"Label Accuracy:\s+([0-9.]+)"
+        exact_match_pattern = r"Exact Match Rate:\s+([0-9.]+)"
+        
         testing_pattern = r"Testing\.\.\."
         
         # Find the last "Testing..." block
@@ -35,7 +40,10 @@ def parse_log_file(log_file):
         relevant_lines = content[testing_start_pos:].split('\n')
         
         acc, p_y1, p_hat_y1 = None, None, None
+        label_acc, exact_match = None, None
+        
         for line in relevant_lines:
+            # Try standard model patterns
             if acc is None:
                 acc_m = re.search(acc_pattern, line)
                 if acc_m:
@@ -49,10 +57,27 @@ def parse_log_file(log_file):
                 if p_hat_y1_m:
                     p_hat_y1 = float(p_hat_y1_m.group(1))
             
-            if acc is not None and p_y1 is not None and p_hat_y1 is not None:
-                break
+            # Try autoregressive model patterns
+            if label_acc is None:
+                label_acc_m = re.search(label_acc_pattern, line)
+                if label_acc_m:
+                    label_acc = float(label_acc_m.group(1))
+            if exact_match is None:
+                exact_match_m = re.search(exact_match_pattern, line)
+                if exact_match_m:
+                    exact_match = float(exact_match_m.group(1))
         
-        if acc is not None:
+        # Return results based on what was found
+        if label_acc is not None:
+            # Autoregressive model
+            return {
+                'test_acc': label_acc,
+                'test_p_y1': None,
+                'test_p_hat_y1': None,
+                'exact_match': exact_match,
+            }
+        elif acc is not None:
+            # Standard model
             return {
                 'test_acc': acc,
                 'test_p_y1': p_y1,
@@ -66,20 +91,24 @@ def parse_log_file(log_file):
 
 def parse_filename(log_file):
     """Extract experiment parameters from log filename"""
-    # Expected format: table_connectivity_{standard|lowrank}_{fixed|random}_V{V}_N{num_examples}_run{run_idx}_gpu{gpu_id}.log
+    # Expected format: table_connectivity_{standard|lowrank|autoregressive}_{fixed|random|auto}_V{V}_N{num_examples}_run{run_idx}_gpu{gpu_id}.log
     filename = log_file.stem  # Remove .log extension
     
-    pattern = r"table_connectivity_(standard|lowrank)_(fixed|random)_V(\d+)_N(\d+)_run(\d+)_gpu(\d+)"
+    pattern = r"table_connectivity_(standard|lowrank|autoregressive)_(fixed|random|auto)_V(\d+)_N(\d+)_run(\d+)_gpu(\d+)"
     match = re.match(pattern, filename)
     
     if match:
         model_tag, sampler_tag, V, num_examples, run_idx, gpu_id = match.groups()
         
         # Determine model type
+        is_autoregressive = (model_tag == 'autoregressive')
         is_lowrank = (model_tag == 'lowrank')
         is_fixed = (sampler_tag == 'fixed')
         
-        if is_lowrank and is_fixed:
+        if is_autoregressive:
+            model_type = 'autoregressive_gpt2'
+            model_name = 'Autoregressive'
+        elif is_lowrank and is_fixed:
             model_type = 'lowrank_gpt2_fixed'
             model_name = 'Low-Rank-Fixed'
         elif is_lowrank:
@@ -149,7 +178,7 @@ def create_comparison_table(df):
             row_data = {'V': V, 'N': num_examples}
             
             # Get each model type
-            for model_name in ['Standard', 'Standard-Fixed', 'Low-Rank', 'Low-Rank-Fixed']:
+            for model_name in ['Standard', 'Standard-Fixed', 'Low-Rank', 'Low-Rank-Fixed', 'Autoregressive']:
                 subset = summary[(summary['V'] == V) & 
                                 (summary['num_examples'] == num_examples) & 
                                 (summary['model'] == model_name)]

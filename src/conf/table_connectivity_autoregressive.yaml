@@ -3,10 +3,10 @@ inherit:
 
 model:
     family: autoregressive_gpt2
-    n_positions: 50  # schema_len (21) + max_path_len (15) + buffer
+    n_positions: 200  # schema_len (21) + max_path_len (15) + buffer
     n_dims: 5
-    n_embd: 256
-    n_layer: 12
+    n_embd: 64
+    n_layer: 8
     n_head: 8
     V: 5
     C: 3
@@ -33,7 +33,7 @@ training:
     learning_rate: 0.0001
     save_every_steps: 100
     keep_every_steps: 100
-    train_steps: 2001
+    train_steps: 10001
 
 out_dir: ../models/table_connectivity_autoregressive
 
