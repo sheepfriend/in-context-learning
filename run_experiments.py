@@ -79,6 +79,7 @@ def run_experiment(V, num_examples, model_type, run_idx, gpu_id):
     # Update parameters
     config['training']['task_kwargs'] = {"V": V, "C": 3, "rho": 0.5}
     config['training']['num_training_examples'] = num_examples
+    config['training']['batch_size'] = 64
     config['wandb']['name'] = run_name
     
     # For lowrank model, update V and C in model config
