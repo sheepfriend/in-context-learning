@@ -23,7 +23,7 @@ os.chdir(src_dir)
 # Experiment parameters
 V_VALUES = [3]
 NUM_EXAMPLES = [2**i for i in range(5,8)]
-MODEL_TYPES = ["gpt2", "lowrank_gpt2", "gpt2_fixed", "lowrank_gpt2_fixed", "autoregressive_gpt2"]
+MODEL_TYPES = ["gpt2", "lowrank_gpt2"]
 NUM_RUNS = 4
 NUM_GPUS = 4  # 使用4个GPU
 
