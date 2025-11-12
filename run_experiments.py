@@ -21,7 +21,7 @@ src_dir = Path(__file__).parent / "src"
 os.chdir(src_dir)
 
 # Experiment parameters
-V_VALUES = [3]
+V_VALUES = [3,4,5]
 NUM_EXAMPLES = [2**i for i in range(5,8)]
 MODEL_TYPES = ["gpt2", "lowrank_gpt2"]
 NUM_RUNS = 20
