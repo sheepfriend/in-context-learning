@@ -117,7 +117,7 @@ class TransformerModel(nn.Module):
         # Input x has norm ≈ sqrt(n_dims), we want pos_emb to have similar magnitude
         # For a vector of dimension n_embd with std σ, norm ≈ sqrt(n_embd) * σ
         # Setting σ = sqrt(n_dims / n_embd) gives norm ≈ sqrt(n_dims)
-        pos_emb_std = (n_dims / n_embd) ** 0.5
+        pos_emb_std = 1.0 # (n_dims / n_embd) ** 0.5
         nn.init.normal_(self._backbone.wpe.weight, mean=0.0, std=pos_emb_std)
 
     def forward(self, xs, ys, inds=None):
@@ -180,7 +180,7 @@ class LowRankTransformerModel(nn.Module):
         # Match the scale of input data: x has norm ≈ sqrt(n_dims)
         # For n_embd dimensional embeddings with std σ, norm ≈ sqrt(n_embd) * σ
         # Setting σ = sqrt(n_dims / n_embd) gives norm ≈ sqrt(n_dims)
-        pos_emb_std = (n_dims / n_embd) ** 0.5
+        pos_emb_std = 1.0 # (n_dims / n_embd) ** 0.5
         
         # One shared embedding for the repeated pattern of length C+1
         self.pos_emb_shared = nn.Parameter(torch.randn(C + 1, n_embd) * pos_emb_std)
