@@ -759,7 +759,7 @@ class MatrixChainVector(Task):
                 # Y part: place Y in the diagonal block
                 # Rows [n*n : n*n+n], columns [1:n+1]
                 y_start = block_start + 1
-                xs_assembled[i, y_start:y_start+n, n*n:(n*n+1)] = Y[:,0]
+                xs_assembled[i, y_start:y_start+1, n*n:(n*n+n)] = Y[:,0]
                 
                 # Z part: place Z in the diagonal block
                 # Rows [n*n+n : n*n+2n], columns [0:n]
