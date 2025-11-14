@@ -620,8 +620,8 @@ class MatrixChain(Task):
                 # Get X_j for this batch item
                 X = xs_b[i, j]  # shape (n, n)
                 
-                # Compute Y = AX
-                Y = A_b[i] @ X
+                # Compute Y = XA
+                Y =  X @ A_b[i]
                 
                 # Compute Z = YB
                 Z = Y @ B_b[i]
