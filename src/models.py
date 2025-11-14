@@ -790,7 +790,7 @@ class MatrixChainTransformer(nn.Module):
         h4_reshaped = h4.view(batch_size, self.L * self.block_size * 2, self.n_embd)  # (batch, L*3n*2, n_embd)
         
         # Concatenate h3 and h4
-        h_final = torch.cat([h3, h4_reshaped], dim=-1)  # (batch, L*3n*2, 2*n_embd)
+        h_final = torch.cat([h3, h4_reshaped*0.0], dim=-1)  # (batch, L*3n*2, 2*n_embd)
         
         # Learnable attention pooling over sequence dimension
         attn_weights = self.pooling_mlp(h_final)  # (batch, L*3n*2, 1)

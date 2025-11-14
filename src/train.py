@@ -70,7 +70,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
         z_loss = loss_func(z_pred, z_target)
         
         # Total loss
-        loss = (y_loss + z_loss) / 2
+        # loss = (y_loss + z_loss) / 2
+        loss = y_loss
         
         if print_loss:
             print(f"Y loss: {y_loss.item():.4f}, Z loss: {z_loss.item():.4f}, Total: {loss.item():.4f}")
