@@ -204,18 +204,28 @@ h_last = h_final[:, last_row_idx]
 ### 修复方案
 改为全局pooling + MLP架构：
 
-1. **全局pooling** (line 789):
+1. **可学习的attention pooling** (lines 730-735, 796-798):
 ```python
-h_pooled = h_final.mean(dim=1)  # (batch, 2*n_embd)
+# Pooling MLP: 生成attention权重
+self.pooling_mlp = nn.Sequential(
+    nn.Linear(2 * n_embd, n_embd),
+    nn.GELU(),
+    nn.Linear(n_embd, 1)
+)
+
+# 使用attention weights做加权求和
+attn_weights = self.pooling_mlp(h_final)  # (batch, L*3n*2, 1)
+attn_weights = torch.softmax(attn_weights, dim=1)
+h_pooled = (h_final * attn_weights).sum(dim=1)  # (batch, 2*n_embd)
 ```
 
-2. **MLP输出6n×6n格式** (lines 732-738):
+2. **MLP输出6n×6n格式** (lines 739-745):
 ```python
 # 输出 2 个 3n×3n 的矩阵（Y 和 Z）
 nn.Linear(2 * n_embd, 2 * (3*n) * (3*n))
 ```
 
-3. **构建块对角输出** (lines 792-802):
+3. **构建块对角输出** (lines 801-811):
 ```python
 mlp_out.view(batch_size, 2, 3*self.n, 3*self.n)
 output_6n[:, :3*self.n, :3*self.n] = Y_pred  # [Y, 0]
@@ -226,10 +236,11 @@ output_6n[:, 3*self.n:, 3*self.n:] = Z_pred  # [0, Z]
 ✅ 前向传播成功
 ✅ 输出形状正确: (2, 36, 12)
 ✅ Y/Z预测: (2, 4, 4) ✓
-✅ 参数量: 256,572
+✅ 参数量: 264,893 (vs 256,572)
+✅ 可学习的attention pooling替代简单mean
 
 ### 影响的文件
-- `src/models.py` (lines 732-738, 788-830)
+- `src/models.py` (lines 730-745, 795-837)
 
 ### 状态
 ✅ 已修复 (2025-11-14)

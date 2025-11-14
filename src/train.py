@@ -52,7 +52,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
 
         if print_loss:
             print(xs.shape, ys.shape, output_y.shape)
-            exit()
+            # exit()
         y_pred = output_y[:, y_start:y_end, n:2*n]
         y_target = ys[:, y_start:y_end, n:2*n]
         y_loss = loss_func(y_pred, y_target)
