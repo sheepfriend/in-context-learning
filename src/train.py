@@ -126,15 +126,15 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
                     z_pred = output[:, z_start-1:z_end-1, :]
                     z_target = ys[:, z_start:z_end, :]
                     z_loss = loss_func(z_pred, z_target)
-                    losses.append(z_loss)
+                    losses.append(z_loss*0)
             
             # Average loss over all Y and Z positions
             loss = torch.stack(losses).mean()
             
             if print_loss:
                 print(f"Loss breakdown: {len(losses)} segments, mean loss: {loss.item():.4f}")
-                print(f"First Y prediction: {output[0, n-1, :]}")
-                print(f"First Y target:     {ys[0, n, :]}")
+                print(f"First Y prediction: {output[0, y_start-1, :]}")
+                print(f"First Y target:     {ys[0, y_start, :]}")
     
     loss.backward()
     optimizer.step()
