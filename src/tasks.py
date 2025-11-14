@@ -730,7 +730,7 @@ class MatrixChainVector(Task):
         
         # For vectorized format: first n^2 rows for x vector, then n rows for Y, then n rows for Z
         # Total rows per block: n^2 + n + n = n^2 + 2n
-        rows_per_block = n+1
+        rows_per_block = 1+1
         
         # n_dims should accommodate the maximum width needed
         # x block: needs 1 column (but we'll use n for consistency)
