@@ -10,13 +10,18 @@ training:
     data: matrix_chain
     task_kwargs: {"L": 3, "n": 4, "m": 4, "p": 4, "q": 4}
     batch_size: 64
-    learning_rate: 3e-4
+    learning_rate: 0.0003
     train_steps: 10000
     curriculum:
-        points:
+        dims:
             start: 12
+            end: 12
+            inc: 0
+            interval: 2000
+        points:
+            start: 36
             end: 36
-            inc: 12
+            inc: 0
             interval: 2000
 
 out_dir: ../models/matrix_chain
