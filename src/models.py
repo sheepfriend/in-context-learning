@@ -111,7 +111,8 @@ class TransformerModel(nn.Module):
         self.n_dims = n_dims
         self._read_in = nn.Linear(n_dims, n_embd)
         self._backbone = GPT2Model(configuration)
-        self._read_out = nn.Linear(n_embd, 1)
+        # Output full n_dims dimensional vector for next token prediction
+        self._read_out = nn.Linear(n_embd, n_dims)
         
         # Reinitialize positional embeddings to match input scale
         # Input x has norm ≈ sqrt(n_dims), we want pos_emb to have similar magnitude
@@ -131,7 +132,14 @@ class TransformerModel(nn.Module):
         embeds = self._read_in(xs)
         output = self._backbone(inputs_embeds=embeds).last_hidden_state
         prediction = self._read_out(output)
-        return prediction[:, :, 0]  # predict only on xs
+        
+        # Check if ys is scalar (shape: batch, seq_len) or vector (shape: batch, seq_len, n_dims)
+        if len(ys.shape) == 2:
+            # Scalar target: return only first dimension for backward compatibility
+            return prediction[:, :, 0]
+        else:
+            # Vector target: return full n_dims dimensional prediction
+            return prediction
 
 
 class LowRankTransformerModel(nn.Module):

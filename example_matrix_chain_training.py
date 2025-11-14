@@ -137,7 +137,9 @@ def simple_training_loop():
         optimizer.zero_grad()
         output = model(xs_assembled, ys)
         
-        # Compute loss only on last position
+        # Compute loss only on last position (full embedding)
+        # output[:, -1] shape: (batch_size, n_dims)
+        # ys[:, -1] shape: (batch_size, n_dims)
         loss = loss_func(output[:, -1], ys[:, -1])
         
         # Backward pass
@@ -156,6 +158,24 @@ def simple_training_loop():
         task = MatrixChain(n_dims=n_dims, batch_size=1, **task_kwargs)
         xs_assembled, ys = task.evaluate(xs)
         
+        # Display A and B matrices
+        A = task.A_b[0]  # shape (n, n)
+        B = task.B_b[0]  # shape (n, n)
+        print(f"   Transformation matrices A and B:")
+        print(f"   A (shape {A.shape}): mean={A.mean().item():.3f}, std={A.std().item():.3f}")
+        print(f"   A:\n{A.numpy()}")
+        print(f"   B (shape {B.shape}): mean={B.mean().item():.3f}, std={B.std().item():.3f}")
+        print(f"   B:\n{B.numpy()}")
+        
+        # Extract the complete Z matrix from the last M_i
+        last_block_idx = L - 1
+        X_last = xs[0, last_block_idx]  # The input X matrix
+        Y_last = A @ X_last  # Y = AX
+        Z_last = Y_last @ B  # Z = YB (this is the complete n×n matrix)
+        
+        print(f"\n   Last M_{last_block_idx} complete Z matrix (shape {Z_last.shape}):")
+        print(f"   Z:\n{Z_last.numpy()}")
+        
         # Get prediction
         output = model(xs_assembled, ys)
         
@@ -166,16 +186,31 @@ def simple_training_loop():
         last_z_end = L * 3 * n  # End of last block
         
         # Extract predictions and targets for Z part of last M_i
-        z_pred = output[0, last_z_start:last_z_end]
-        z_target = ys[0, last_z_start:last_z_end]
+        # Now ys contains full embeddings, shape (1, seq_len, n_dims)
+        # Z part embeddings: positions [last_z_start:last_z_end] in the 2n:3n dimension range
+        z_pred_embeddings = output[0, last_z_start:last_z_end]  # shape (n, 3*n)
+        z_target_embeddings = ys[0, last_z_start:last_z_end]  # shape (n, 3*n)
         
-        # Calculate MSE
-        mse = ((z_pred - z_target) ** 2).mean().item()
+        # Extract only the Z block part (columns 2n:3n)
+        z_pred_block = z_pred_embeddings[:, 2*n:3*n]  # shape (n, n)
+        z_target_block = z_target_embeddings[:, 2*n:3*n]  # shape (n, n)
         
-        print(f"   Last M_{L-1} Z positions: [{last_z_start}:{last_z_end}]")
-        print(f"   Z predictions: {z_pred.numpy()}")
-        print(f"   Z targets:     {z_target.numpy()}")
-        print(f"   Average MSE on last M_i's Z: {mse:.4f}")
+        # Calculate MSE on the full Z matrix
+        mse_full = ((z_pred_block - z_target_block) ** 2).mean().item()
+        
+        print(f"\n   Z target encoding: full embedding vectors (no aggregation)")
+        print(f"   Z true matrix (from computation):")
+        print(f"{Z_last.numpy()}")
+        print(f"\n   Z target matrix (from embeddings, should match above):")
+        print(f"{z_target_block.numpy()}")
+        print(f"\n   Z predicted matrix:")
+        print(f"{z_pred_block.numpy()}")
+        print(f"\n   Average MSE on full Z matrix: {mse_full:.4f}")
+        
+        # Also show per-element errors
+        element_errors = ((z_pred_block - z_target_block) ** 2).numpy()
+        print(f"   Per-element squared errors:")
+        print(f"{element_errors}")
     
     print(f"\n{'='*80}")
     print("✓ Training example completed!")

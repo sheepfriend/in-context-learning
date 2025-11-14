@@ -574,13 +574,15 @@ class MatrixChain(Task):
         
         Output:
             xs_assembled: shape (b_size, L*3*n, 3*n) - assembled block diagonal matrices
-            ys_b: shape (b_size, L*3*n) - targets (0 for X rows, mean for Y and Z rows)
+            ys_b: shape (b_size, L*3*n, 3*n) - targets (full embeddings for next token prediction)
         
         Block structure for each M_i (size 3n x 3n):
             [X  0  0]
             [0  Y  0]
             [0  0  Z]
         where X, Y, Z are each n x n matrices
+        
+        For next token prediction, the target at position i is the embedding at position i+1.
         """
         b_size = xs_b.shape[0]
         L = xs_b.shape[1]
@@ -595,7 +597,6 @@ class MatrixChain(Task):
         
         # Initialize assembled matrices
         xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
-        ys_b = torch.zeros(b_size, total_rows, device=xs_b.device)
         
         for i in range(b_size):
             for j in range(L):
@@ -618,18 +619,16 @@ class MatrixChain(Task):
                 
                 # Fill X block (top-left: rows [0:n], cols [0:n])
                 xs_assembled[i, block_start:block_start+n, :n] = X
-                # Target for X rows is 0 (not used in loss, but set for completeness)
-                ys_b[i, block_start:block_start+n] = 0
                 
                 # Fill Y block (middle: rows [n:2n], cols [n:2n])
                 xs_assembled[i, block_start+n:block_start+2*n, n:2*n] = Y
-                # Target for Y rows: use mean of each row
-                ys_b[i, block_start+n:block_start+2*n] = Y.mean(dim=1)
                 
                 # Fill Z block (bottom-right: rows [2n:3n], cols [2n:3n])
                 xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
-                # Target for Z rows: use mean of each row
-                ys_b[i, block_start+2*n:block_start+3*n] = Z.mean(dim=1)
+        
+        # For next token prediction, ys[i] = xs[i+1]
+        # The target is to predict the next embedding
+        ys_b = xs_assembled.clone()
         
         return xs_assembled, ys_b
     
