@@ -117,8 +117,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 
                 y_start = block_start + 1
                 y_end = block_start + 1 + n
-                z_start = block_start + 1 + n
-                z_end = block_start + 1 + 2 * n
+                # z_start = block_start + 1 + n
+                # z_end = block_start + 1 + 2 * n
 
                 # For Y: predict from previous position (y_start-1 to y_end-1)
                 # Target: ys[:, y_start:y_end, :]
@@ -132,10 +132,10 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 
                 # For Z: predict from previous position (z_start-1 to z_end-1)
                 # Target: ys[:, z_start:z_end, :]
-                if z_start > 0:
-                    z_pred = output[:, z_start-1:z_end-1, :]
-                    z_target = ys[:, z_start:z_end, :]
-                    z_loss = loss_func(z_pred, z_target)
+                # if z_start > 0:
+                #     z_pred = output[:, z_start-1:z_end-1, :]
+                #     z_target = ys[:, z_start:z_end, :]
+                #     z_loss = loss_func(z_pred, z_target)
                     # losses.append(z_loss)
             
             # Average loss over all Y and Z positions
@@ -212,7 +212,7 @@ def train(model, args, test=False):
         # print(xs[0,:,:], ys[0,-1])
         # exit()
 
-        block_size = 1+2*data_sampler.n
+        block_size = 1+data_sampler.n
 
         loss_func = task.get_training_metric()
         if i % 100 == 0:

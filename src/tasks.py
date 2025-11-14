@@ -728,6 +728,126 @@ class MatrixChainVector(Task):
         
         # For vectorized format: first n^2 rows for x vector, then n rows for Y, then n rows for Z
         # Total rows per block: n^2 + n + n = n^2 + 2n
+        rows_per_block = n+1
+        
+        # n_dims should accommodate the maximum width needed
+        # x block: needs 1 column (but we'll use n for consistency)
+        # Y block: needs n columns
+        # Z block: needs n columns
+        # So we use n columns total (n_dims = n)
+
+        xs_assembled = torch.zeros(b_size, (n+1)*L, n*n+n, device=xs_b.device)
+        
+        for i in range(b_size):
+            for j in range(L):
+                X = xs_b[i, j]  # (n, n)
+                
+                # Fixed transformation order: Y = X @ A, Z = Y @ B
+                Y = X @ A_b[i]
+                Z = Y @ B_b[i]
+                
+                # Assemble the block
+                block_start = j * rows_per_block
+                
+                # x part: flatten X column-wise and place in first column
+                # X flattened: (n*n,)  place in first n*n rows, first column
+                x_flat = X.T.reshape(-1)  # Flatten column-wise (Fortran order)
+                xs_assembled[i, block_start, 0:n*n] = x_flat
+                
+                # Y part: place Y in the diagonal block
+                # Rows [n*n : n*n+n], columns [1:n+1]
+                y_start = block_start + 1
+                xs_assembled[i, y_start:y_start+n, n*n:(n*n+n)] = Y
+                
+                # Z part: place Z in the diagonal block
+                # Rows [n*n+n : n*n+2n], columns [0:n]
+                # z_start = y_start + n
+                # xs_assembled[i, z_start:z_start+n, n*n+n:(n*n+n*2)] = Z
+        
+        ys_b = xs_assembled.clone()
+        # print(ys_b.shape)
+        # for i in ys_b[0]:
+            # print(i)
+        # exit()
+        return xs_assembled, ys_b
+    
+    @staticmethod
+    def generate_pool_dict(n_dims, num_tasks, L=3, n=4, m=4, p=4, q=4, **kwargs):
+        """Generate a pool of transformation matrices."""
+        return {
+            "A": torch.randn(num_tasks, n, n),
+            "B": torch.randn(num_tasks, n, n),
+        }
+    
+    @staticmethod
+    def get_metric():
+        return squared_error
+    
+    @staticmethod
+    def get_training_metric():
+        return mean_squared_error
+
+class MatrixChainVector_bak(Task):
+    """
+    Matrix chain transformation task with X reshaped as column vector: Y = AX, Z = YB
+    
+    For each prompt:
+    1. Sample L matrices X_i (each n×n where each row ~ N(0, I_n))
+    2. Reshape X_i into column vector x_i (n^2 × 1)
+    3. Apply transformations: Y_i = A @ X_i, Z_i = Y_i @ B (shared A, B for all i)
+    4. Assemble data as [x, 0, 0; 0, Y, 0; 0, 0, Z] for each i
+    5. Concatenate all along sequence dimension
+    
+    The key difference from MatrixChain: X is stored as a flattened column vector in the first block.
+    """
+    
+    def __init__(self, n_dims, batch_size, pool_dict=None, seeds=None, L=3, n=4, m=4, p=4, q=4):
+        super(MatrixChainVector, self).__init__(n_dims, batch_size, pool_dict, seeds)
+        self.L = L
+        self.n = n
+        self.m = m
+        self.p = p
+        self.q = q
+        assert n == m == p == q, "For simplicity, use n=m=p=q (all same size)"
+        
+        self.use_seeds = seeds is not None
+        self.use_pool = pool_dict is not None
+        
+        # Fixed transformation order: Y=XA, Z=YB (no randomness)
+        if pool_dict is not None:
+            assert "A" in pool_dict and "B" in pool_dict
+            indices = torch.randperm(len(pool_dict["A"]))[:batch_size]
+            self.A_b = pool_dict["A"][indices]
+            self.B_b = pool_dict["B"][indices]
+        elif seeds is not None:
+            self.A_b = torch.zeros(self.b_size, self.n, self.n)
+            self.B_b = torch.zeros(self.b_size, self.n, self.n)
+            generator = torch.Generator()
+            assert len(seeds) == self.b_size
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed)
+                self.A_b[i] = torch.randn(self.n, self.n, generator=generator)
+                self.B_b[i] = torch.randn(self.n, self.n, generator=generator)
+        else:
+            # No seeds: A and B will be generated dynamically in evaluate()
+            self.A_b = None
+            self.B_b = None
+    
+    def evaluate(self, xs_b):
+        b_size = xs_b.shape[0]
+        L = xs_b.shape[1]
+        n = self.n
+        
+        # Generate A and B dynamically if not already set (no seeds case)
+        if self.A_b is None:
+            A_b = torch.randn(b_size, n, n, device=xs_b.device)
+            B_b = torch.randn(b_size, n, n, device=xs_b.device)
+        else:
+            A_b = self.A_b.to(xs_b.device)
+            B_b = self.B_b.to(xs_b.device)
+        
+        # For vectorized format: first n^2 rows for x vector, then n rows for Y, then n rows for Z
+        # Total rows per block: n^2 + n + n = n^2 + 2n
         rows_per_block = 2*n+1
         
         # n_dims should accommodate the maximum width needed
