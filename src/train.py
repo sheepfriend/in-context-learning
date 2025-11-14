@@ -95,6 +95,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
             # We want to predict Y and Z from previous positions
             
             batch_size, seq_len, n_dims = ys.shape
+            print(ys.shape)
+            exit()
             n = n_dims // 3  # Assuming n_dims = 3*n for matrix_chain
             block_size = 3 * n
             L = seq_len // block_size  # Number of M_i blocks
