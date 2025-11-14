@@ -133,8 +133,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
             
             if print_loss:
                 print(f"Loss breakdown: {len(losses)} segments, mean loss: {loss.item():.4f}")
-                print(f"First Y prediction: {output[0, n-1, :5]}")
-                print(f"First Y target:     {ys[0, n, :5]}")
+                print(f"First Y prediction: {output[0, n-1, :]}")
+                print(f"First Y target:     {ys[0, n, :]}")
     
     loss.backward()
     optimizer.step()
