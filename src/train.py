@@ -105,7 +105,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             # exit()
             # Collect all Y and Z positions for loss computation
             losses = []
-            for block_idx in range(L):
+            for block_idx in [L-1]:
                 block_start = block_idx * block_size
                 
                 # Y positions: [block_start+n : block_start+2*n]
@@ -145,6 +145,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 print(f"Loss breakdown: {len(losses)} segments, mean loss: {loss.item():.4f}")
                 print(f"First Y prediction: {output[0, y_start-1, :]}")
                 print(f"First Y target:     {ys[0, y_start, :]}")
+                print(y_pred,y_target,y_loss)
     
     loss.backward()
     optimizer.step()
@@ -214,7 +215,7 @@ def train(model, args, test=False):
         block_size = 1+2*data_sampler.n
 
         loss_func = task.get_training_metric()
-        if i % 1000 == 0:
+        if i % 100 == 0:
             print_loss = True
         else:
             print_loss = False
