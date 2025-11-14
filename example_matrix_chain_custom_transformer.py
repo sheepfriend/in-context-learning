@@ -93,9 +93,11 @@ def main():
         z_start = last_block_start + 2 * n
         z_end = last_block_start + 3 * n
         
-        # Step 1: Predict Y (with Y masked)
+        # Step 1: Predict Y (with Y and Z masked)
+        # Z should also be masked because Z depends on Y
         xs_masked_y = xs_assembled.clone()
-        xs_masked_y[:, y_start:y_end, n:2*n] = 0
+        xs_masked_y[:, y_start:y_end, n:2*n] = 0  # Mask Y
+        xs_masked_y[:, z_start:z_end, 2*n:3*n] = 0  # Mask Z
         output_y = model(xs_masked_y, ys)
         y_pred = output_y[:, y_start:y_end, n:2*n]
         y_target = ys[:, y_start:y_end, n:2*n]
@@ -141,9 +143,10 @@ def main():
         A = task_test.A_b[0]  # First batch item's A matrix
         B = task_test.B_b[0]  # First batch item's B matrix
         
-        # Predict Y
+        # Predict Y (with Y and Z masked)
         xs_test_masked_y = xs_test_assembled.clone()
-        xs_test_masked_y[:, y_start:y_end, n:2*n] = 0
+        xs_test_masked_y[:, y_start:y_end, n:2*n] = 0  # Mask Y
+        xs_test_masked_y[:, z_start:z_end, 2*n:3*n] = 0  # Mask Z
         output_test_y = model(xs_test_masked_y, ys_test)
         y_pred_test = output_test_y[0, y_start:y_end, n:2*n]  # First batch item
         y_target_test = ys_test[0, y_start:y_end, n:2*n]

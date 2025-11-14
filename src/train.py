@@ -38,13 +38,21 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
         block_size = 3 * n
         last_block_start = (L - 1) * block_size
         
-        # Step 1: Mask Y and predict it
+        # Step 1: Mask Y and Z, then predict Y
+        # (Z should also be masked because Z depends on Y)
         xs_masked_y = xs.clone()
         y_start = last_block_start + n
         y_end = last_block_start + 2 * n
+        z_start = last_block_start + 2 * n
+        z_end = last_block_start + 3 * n
         xs_masked_y[:, y_start:y_end, n:2*n] = 0  # Mask Y
+        xs_masked_y[:, z_start:z_end, 2*n:3*n] = 0  # Mask Z (because Z depends on Y)
         
         output_y = model(xs_masked_y, ys)
+
+        if print_loss:
+            print(xs.shape, ys.shape, output_y.shape)
+            exit()
         y_pred = output_y[:, y_start:y_end, n:2*n]
         y_target = ys[:, y_start:y_end, n:2*n]
         y_loss = loss_func(y_pred, y_target)

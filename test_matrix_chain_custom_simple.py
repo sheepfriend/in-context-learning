@@ -25,11 +25,15 @@ def train_step_custom(model, xs, ys, optimizer, loss_func):
     block_size = 3 * n
     last_block_start = (L - 1) * block_size
     
-    # Step 1: Mask Y and predict it
+    # Step 1: Mask Y and Z, then predict Y
+    # (Z should also be masked because Z depends on Y)
     xs_masked_y = xs.clone()
     y_start = last_block_start + n
     y_end = last_block_start + 2 * n
+    z_start = last_block_start + 2 * n
+    z_end = last_block_start + 3 * n
     xs_masked_y[:, y_start:y_end, n:2*n] = 0  # Mask Y
+    xs_masked_y[:, z_start:z_end, 2*n:3*n] = 0  # Mask Z (because Z depends on Y)
     
     output_y = model(xs_masked_y, ys)
     y_pred = output_y[:, y_start:y_end, n:2*n]
@@ -38,8 +42,6 @@ def train_step_custom(model, xs, ys, optimizer, loss_func):
     
     # Step 2: Use ground truth Y to predict Z
     xs_with_true_y = xs.clone()
-    z_start = last_block_start + 2 * n
-    z_end = last_block_start + 3 * n
     xs_with_true_y[:, z_start:z_end, 2*n:3*n] = 0  # Mask Z
     
     output_z = model(xs_with_true_y, ys)
@@ -146,9 +148,10 @@ def main():
             z_start = last_block_start + 2 * n
             z_end = last_block_start + 3 * n
             
-            # Y prediction
+            # Y prediction (with Y and Z masked)
             xs_test_masked_y = xs_test_assembled.clone()
-            xs_test_masked_y[:, y_start:y_end, n:2*n] = 0
+            xs_test_masked_y[:, y_start:y_end, n:2*n] = 0  # Mask Y
+            xs_test_masked_y[:, z_start:z_end, 2*n:3*n] = 0  # Mask Z
             output_test_y = model(xs_test_masked_y, ys_test)
             y_pred_test = output_test_y[:, y_start:y_end, n:2*n]
             y_target_test = ys_test[:, y_start:y_end, n:2*n]
