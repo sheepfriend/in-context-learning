@@ -19,7 +19,7 @@ import wandb
 torch.backends.cudnn.benchmark = True
 
 
-def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size=3):
+def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size=3, n=1):
     optimizer.zero_grad()
     
     # Check if using custom MatrixChainTransformer
@@ -95,11 +95,12 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             # We want to predict Y and Z from previous positions
             
             batch_size, seq_len, n_dims = ys.shape
+            
             # print(ys.shape)
             # exit()
-            n = n_dims // 3  # Assuming n_dims = 3*n for matrix_chain
-            block_size = 3 * n
-            L = seq_len // block_size  # Number of M_i blocks
+            # n = n_dims // 3  # Assuming n_dims = 3*n for matrix_chain
+            # block_size = 3 * n
+            # L = seq_len // block_size  # Number of M_i blocks
             
             # Collect all Y and Z positions for loss computation
             losses = []
@@ -107,13 +108,17 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 block_start = block_idx * block_size
                 
                 # Y positions: [block_start+n : block_start+2*n]
-                y_start = block_start + n
-                y_end = block_start + 2 * n
-                
+                # y_start = block_start + n
+                # y_end = block_start + 2 * n
                 # Z positions: [block_start+2*n : block_start+3*n]
-                z_start = block_start + 2 * n
-                z_end = block_start + 3 * n
+                # z_start = block_start + 2 * n
+                # z_end = block_start + 3 * n
                 
+                y_start = block_start + 1
+                y_end = block_start + 1 + n
+                z_start = block_start + 1 + n
+                z_end = block_start + 1 + 2 * n
+
                 # For Y: predict from previous position (y_start-1 to y_end-1)
                 # Target: ys[:, y_start:y_end, :]
                 if y_start > 0:
@@ -210,7 +215,7 @@ def train(model, args, test=False):
             print_loss = True
         else:
             print_loss = False
-        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss, block_size=block_size)
+        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss, block_size=block_size, n=data_sampler.n)
 
         if test:
             exit()
@@ -270,7 +275,7 @@ def train(model, args, test=False):
         )
     task = task_sampler(**task_sampler_args)
     xs, ys = task.evaluate(xs)
-    loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size)
+    loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=data_sampler.n)
     print(f"Test loss: {loss}")
 
 def main(args):
