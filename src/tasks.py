@@ -746,11 +746,10 @@ class MatrixChainVector(Task):
                 
                 # Fixed transformation order: Y = X @ A, Z = Y @ B
                 Y = X @ A_b[i] 
-                print(X[:,0])
-                print(A_b[i][0,:])
-                print(X[:,0]@A_b[i][0,:])
+                # print(X[:,0])
+                # print(A_b[i][0,:])
+                print(X[0,:]@A_b[i][:,0])
                 print(Y[0,0])
-                exit()
                 Z = Y @ B_b[i] 
                 
                 # Assemble the block
@@ -759,6 +758,7 @@ class MatrixChainVector(Task):
                 # x part: flatten X column-wise and place in first column
                 # X flattened: (n*n,)  place in first n*n rows, first column
                 x_flat = X.T.reshape(-1)  # Flatten column-wise (Fortran order)
+                print(x_flat[::4])
                 xs_assembled[i, block_start, 0:n*n] = x_flat
                 
                 # Y part: place Y in the diagonal block
