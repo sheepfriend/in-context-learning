@@ -748,9 +748,9 @@ class MatrixChainVector(Task):
                 Y = X @ A_b[i] 
                 # print(X[:,0])
                 # print(A_b[i][0,:])
-                if i == 0 and j == 0:
-                    print(X[0,:]@A_b[i][:,0])
-                    print(Y[0,0])
+                # if i == 0 and j == 0:
+                    # print(X[0,:]@A_b[i][:,0])
+                    # print(Y[0,0])
                 Z = Y @ B_b[i] 
                 
                 # Assemble the block
@@ -775,10 +775,10 @@ class MatrixChainVector(Task):
         ys_b = xs_assembled.clone()
 
 
-        print(xs_assembled[0,0,::4])
-        print(self.last_A_b[0,:,0])
-        print(xs_assembled[0,0,::4]@self.last_A_b[0,:,0])
-        exit()
+        # print(xs_assembled[0,0,::4])
+        # print(self.last_A_b[0,:,0])
+        # print(xs_assembled[0,0,::4]@self.last_A_b[0,:,0])
+        # exit()
         # print(ys_b.shape)
         # for i in ys_b[0]:
             # print(i)
