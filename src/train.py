@@ -24,7 +24,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
     output = model(xs, ys)
     
     # Handle both scalar targets (shape: batch, seq_len) and vector targets (shape: batch, seq_len, n_dims)
-    loss = loss_func(output[:,-1], ys[:,-1])
+    loss = loss_func(output[:,-1,:], ys[:,-1,:])
 
     if print_loss:
         print(output[0,-1,:])
