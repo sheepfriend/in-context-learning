@@ -738,7 +738,7 @@ class MatrixChainVector(Task):
         # Z block: needs n columns
         # So we use n columns total (n_dims = n)
 
-        xs_assembled = torch.zeros(b_size, (n+1)*L, n*n+n, device=xs_b.device)
+        xs_assembled = torch.zeros(b_size, (1+1)*L, n*n+n, device=xs_b.device)
         
         for i in range(b_size):
             for j in range(L):
@@ -759,7 +759,7 @@ class MatrixChainVector(Task):
                 # Y part: place Y in the diagonal block
                 # Rows [n*n : n*n+n], columns [1:n+1]
                 y_start = block_start + 1
-                xs_assembled[i, y_start:y_start+n, n*n:(n*n+n)] = Y
+                xs_assembled[i, y_start:y_start+n, n*n:(n*n+1)] = Y[:,0]
                 
                 # Z part: place Z in the diagonal block
                 # Rows [n*n+n : n*n+2n], columns [0:n]

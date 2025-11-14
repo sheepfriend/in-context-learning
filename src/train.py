@@ -212,7 +212,7 @@ def train(model, args, test=False):
         # print(xs[0,:,:], ys[0,-1])
         # exit()
 
-        block_size = 1+data_sampler.n
+        block_size = 1+1
 
         loss_func = task.get_training_metric()
         if i % 1000 == 0:
