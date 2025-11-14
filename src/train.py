@@ -217,6 +217,8 @@ def train(model, args, test=False):
         loss_func = task.get_training_metric()
         if i % 1000 == 0:
             print_loss = True
+            print(xs[0,::5,::4]@task_sampler.last_A_b[:,0])
+            print(ys[0,::2,16])
         else:
             print_loss = False
         loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss, block_size=block_size, n=data_sampler.n)

@@ -722,6 +722,8 @@ class MatrixChainVector(Task):
         if self.A_b is None:
             A_b = torch.randn(b_size, n, n, device=xs_b.device)
             B_b = torch.randn(b_size, n, n, device=xs_b.device)
+            self.last_A_b = A_b
+            self.last_B_b = B_b
         else:
             A_b = self.A_b.to(xs_b.device)
             B_b = self.B_b.to(xs_b.device)
