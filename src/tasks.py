@@ -549,6 +549,18 @@ class MatrixChain(Task):
         self.use_seeds = seeds is not None
         self.use_pool = pool_dict is not None
         
+        # Store order selection for reproducibility
+        if seeds is not None:
+            # Pre-generate order for each batch item using seeds
+            self.orders = []
+            generator = torch.Generator()
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed + 1000)  # Use different seed offset for order
+                order = torch.randint(0, 4, (1,), generator=generator).item()
+                self.orders.append(order)
+        else:
+            self.orders = None
+        
         # Generate transformation matrices A and B based on mode
         if pool_dict is not None:
             # Use pool: fixed A and B from pool
@@ -616,12 +628,17 @@ class MatrixChain(Task):
         xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
         
         for i in range(b_size):
-            # Randomly decide the order for this batch item
+            # Decide the order for this batch item
             # 0: Y = AX, Z = YB
             # 1: Y = AX, Z = BY
             # 2: Y = XA, Z = YB
             # 3: Y = XA, Z = BY
-            order = torch.randint(0, 4, (1,)).item()
+            if self.orders is not None:
+                # Use pre-generated order (deterministic with seeds)
+                order = self.orders[i]
+            else:
+                # Generate random order (no seeds)
+                order = torch.randint(0, 4, (1,)).item()
             
             for j in range(L):
                 # Get X_j for this batch item
