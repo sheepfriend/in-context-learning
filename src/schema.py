@@ -14,16 +14,18 @@ from funcy import merge
 
 
 model_schema = {
-    "family": merge(tstring, allowed(["gpt2", "lstm", "lowrank_gpt2", "autoregressive_gpt2"])),
-    "n_positions": merge(tinteger, required),  # maximum context length
+    "family": merge(tstring, allowed(["gpt2", "lstm", "lowrank_gpt2", "autoregressive_gpt2", "matrix_chain_transformer"])),
+    "n_positions": merge(tinteger, nullable, default(None)),  # maximum context length
     "n_dims": merge(tinteger, required),  # latent dimension
     "n_embd": merge(tinteger, required),
-    "n_layer": merge(tinteger, required),
+    "n_layer": merge(tinteger, nullable, default(12)),
     "n_head": merge(tinteger, required),
     "V": merge(tinteger, nullable, default(20)),  # number of blocks (for lowrank_gpt2 and autoregressive)
     "C": merge(tinteger, nullable, default(3)),   # block size (for lowrank_gpt2 and autoregressive)
     "vocab_size": merge(tinteger, nullable, default(None)),  # vocabulary size (for autoregressive)
     "schema_len": merge(tinteger, nullable, default(None)),  # schema length (for autoregressive)
+    "L": merge(tinteger, nullable, default(3)),  # number of M_i blocks (for matrix_chain_transformer)
+    "n": merge(tinteger, nullable, default(4)),  # matrix size (for matrix_chain_transformer)
 }
 
 curriculum_base_schema = {

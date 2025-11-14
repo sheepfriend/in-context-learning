@@ -33,6 +33,17 @@ def build_model(conf):
             V=V,
             C=C,
         )
+    elif conf.family == "matrix_chain_transformer":
+        # Extract L and n for matrix chain
+        L = getattr(conf, 'L', 3)
+        n = getattr(conf, 'n', 4)
+        model = MatrixChainTransformer(
+            n_dims=conf.n_dims,
+            n_embd=conf.n_embd,
+            n_head=conf.n_head,
+            L=L,
+            n=n,
+        )
     else:
         raise NotImplementedError
 
@@ -640,3 +651,159 @@ class XGBoostModel:
             preds.append(pred)
 
         return torch.stack(preds, dim=1)
+
+
+class MatrixChainTransformer(nn.Module):
+    """
+    Custom Transformer for Matrix Chain task.
+    
+    Architecture:
+    1. Process [M_1, ..., M_L] and [M_1^T, ..., M_L^T] through separate 1-layer transformers
+    2. Concatenate outputs and process through two transformers (no positional encoding)
+    3. MLP to predict Y and Z of last M_i
+    
+    Training:
+    - Predict Y of last M_i with Y masked
+    - Predict Z of last M_i given ground truth Y
+    - Loss only on last M_i's Y and Z
+    """
+    
+    def __init__(self, n_dims, n_embd=128, n_head=4, L=3, n=4):
+        super(MatrixChainTransformer, self).__init__()
+        self.n_dims = n_dims  # Should be 3*n for matrix chain
+        self.n_embd = n_embd
+        self.n_head = n_head
+        self.L = L  # Number of M_i blocks
+        self.n = n  # Size of each sub-matrix
+        self.block_size = 3 * n  # Size of each M_i
+        self.n_positions = L * self.block_size
+        
+        self.name = f"matrix_chain_transformer_L={L}_n={n}_embd={n_embd}"
+        
+        # Stage 1: Two separate 1-layer transformers for original and transposed sequences
+        # Transformer 1: for [M_1, ..., M_L]
+        self.embed_1 = nn.Linear(n_dims * n_dims, n_embd)  # Flatten M_i to vector
+        encoder_layer_1 = nn.TransformerEncoderLayer(
+            d_model=n_embd, 
+            nhead=n_head, 
+            dim_feedforward=4*n_embd,
+            dropout=0.0,
+            activation='gelu',
+            batch_first=True
+        )
+        self.transformer_1 = nn.TransformerEncoder(encoder_layer_1, num_layers=1)
+        
+        # Transformer 2: for [M_1^T, ..., M_L^T]
+        self.embed_2 = nn.Linear(n_dims * n_dims, n_embd)
+        encoder_layer_2 = nn.TransformerEncoderLayer(
+            d_model=n_embd,
+            nhead=n_head,
+            dim_feedforward=4*n_embd,
+            dropout=0.0,
+            activation='gelu',
+            batch_first=True
+        )
+        self.transformer_2 = nn.TransformerEncoder(encoder_layer_2, num_layers=1)
+        
+        # Stage 2: Two transformers without positional encoding
+        encoder_layer_3 = nn.TransformerEncoderLayer(
+            d_model=n_embd,
+            nhead=n_head,
+            dim_feedforward=4*n_embd,
+            dropout=0.0,
+            activation='gelu',
+            batch_first=True
+        )
+        self.transformer_3 = nn.TransformerEncoder(encoder_layer_3, num_layers=1)
+        
+        encoder_layer_4 = nn.TransformerEncoderLayer(
+            d_model=n_embd,
+            nhead=n_head,
+            dim_feedforward=4*n_embd,
+            dropout=0.0,
+            activation='gelu',
+            batch_first=True
+        )
+        self.transformer_4 = nn.TransformerEncoder(encoder_layer_4, num_layers=1)
+        
+        # Stage 3: MLP for final prediction of Y and Z
+        self.mlp = nn.Sequential(
+            nn.Linear(2 * n_embd, 4 * n_embd),
+            nn.GELU(),
+            nn.Linear(4 * n_embd, 2 * n_embd),
+            nn.GELU(),
+            nn.Linear(2 * n_embd, 2 * n * n)  # Output Y (n*n) and Z (n*n)
+        )
+        
+    def forward(self, xs, ys, inds=None):
+        """
+        Forward pass.
+        
+        Args:
+            xs: (batch_size, L*3*n, 3*n) - input matrices
+            ys: (batch_size, L*3*n, 3*n) - target matrices
+        
+        Returns:
+            predictions: (batch_size, L*3*n, 3*n) - predictions for all positions
+        """
+        batch_size = xs.shape[0]
+        
+        # Extract M_i blocks (shape: batch, L, 3n, 3n)
+        M_blocks = xs.view(batch_size, self.L, self.block_size, self.n_dims)
+        
+        # Flatten each M_i to a vector for transformer processing
+        M_flat = M_blocks.view(batch_size, self.L, -1)  # (batch, L, 3n*3n)
+        
+        # Stage 1: Process original and transposed sequences
+        h1 = self.embed_1(M_flat)  # (batch, L, n_embd)
+        h1 = self.transformer_1(h1)  # (batch, L, n_embd)
+        
+        # Transposed sequence
+        M_transposed = M_blocks.transpose(-2, -1)  # (batch, L, 3n, 3n)
+        M_transposed_flat = M_transposed.reshape(batch_size, self.L, -1)
+        
+        h2 = self.embed_2(M_transposed_flat)  # (batch, L, n_embd)
+        h2 = self.transformer_2(h2)  # (batch, L, n_embd)
+        
+        # Concatenate: [M_1, ..., M_L, M_1^T, ..., M_L^T]
+        h_concat = torch.cat([h1, h2], dim=1)  # (batch, 2*L, n_embd)
+        
+        # Stage 2: Two transformers
+        h3 = self.transformer_3(h_concat)  # (batch, 2*L, n_embd)
+        
+        # Transpose for transformer 4
+        h3_T = h3.transpose(0, 1)  # (2*L, batch, n_embd)
+        h4 = self.transformer_4(h3_T)  # (2*L, batch, n_embd)
+        h4 = h4.transpose(0, 1)  # (batch, 2*L, n_embd)
+        
+        # Concatenate h3 and h4
+        h_final = torch.cat([h3, h4], dim=-1)  # (batch, 2*L, 2*n_embd)
+        
+        # Use last position (corresponding to M_L)
+        h_last = h_final[:, self.L-1]  # (batch, 2*n_embd)
+        
+        # Predict Y and Z
+        yz_pred = self.mlp(h_last)  # (batch, 2*n*n)
+        yz_pred = yz_pred.view(batch_size, 2*self.n, self.n)  # (batch, 2*n, n)
+        
+        # Split into Y and Z
+        y_pred = yz_pred[:, :self.n, :]  # (batch, n, n)
+        z_pred = yz_pred[:, self.n:, :]  # (batch, n, n)
+        
+        # Construct full output
+        output = torch.zeros_like(xs)
+        
+        # Fill in predictions for last M_i
+        last_block_start = (self.L - 1) * self.block_size
+        
+        # Y positions
+        y_start = last_block_start + self.n
+        y_end = last_block_start + 2 * self.n
+        output[:, y_start:y_end, self.n:2*self.n] = y_pred
+        
+        # Z positions
+        z_start = last_block_start + 2 * self.n
+        z_end = last_block_start + 3 * self.n
+        output[:, z_start:z_end, 2*self.n:3*self.n] = z_pred
+        
+        return output
