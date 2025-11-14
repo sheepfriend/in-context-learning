@@ -55,8 +55,8 @@ python train.py --config conf/matrix_chain_custom.yaml
 ## 🎯 关键特性
 
 1. **两步训练**
-   - 第1步：mask Y，预测 Y
-   - 第2步：用真实Y，预测 Z
+   - 第1步：mask Y和Z，预测 Y（因为Z依赖于Y）
+   - 第2步：用真实Y + mask Z，预测 Z
 
 2. **双路处理**
    - 同时处理原始和转置矩阵

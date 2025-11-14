@@ -681,8 +681,8 @@ class MatrixChainTransformer(nn.Module):
         self.name = f"matrix_chain_transformer_L={L}_n={n}_embd={n_embd}"
         
         # Stage 1: Two separate 1-layer transformers for original and transposed sequences
-        # Transformer 1: for [M_1, ..., M_L]
-        self.embed_1 = nn.Linear(n_dims * n_dims, n_embd)  # Flatten M_i to vector
+        # Transformer 1: for rows of [M_1, ..., M_L]
+        self.embed_1 = nn.Linear(n_dims, n_embd)  # Each row is a token (3n dimensions)
         encoder_layer_1 = nn.TransformerEncoderLayer(
             d_model=n_embd, 
             nhead=n_head, 
@@ -693,8 +693,8 @@ class MatrixChainTransformer(nn.Module):
         )
         self.transformer_1 = nn.TransformerEncoder(encoder_layer_1, num_layers=1)
         
-        # Transformer 2: for [M_1^T, ..., M_L^T]
-        self.embed_2 = nn.Linear(n_dims * n_dims, n_embd)
+        # Transformer 2: for rows of [M_1^T, ..., M_L^T]
+        self.embed_2 = nn.Linear(n_dims, n_embd)  # Each row is a token (3n dimensions)
         encoder_layer_2 = nn.TransformerEncoderLayer(
             d_model=n_embd,
             nhead=n_head,
@@ -716,23 +716,32 @@ class MatrixChainTransformer(nn.Module):
         )
         self.transformer_3 = nn.TransformerEncoder(encoder_layer_3, num_layers=1)
         
+        # Transformer 4 operates on reshaped sequence with token dimension 3n
         encoder_layer_4 = nn.TransformerEncoderLayer(
-            d_model=n_embd,
+            d_model=3*n,  # Token dimension is 3n after reshape
             nhead=n_head,
-            dim_feedforward=4*n_embd,
+            dim_feedforward=4*3*n,
             dropout=0.0,
             activation='gelu',
             batch_first=True
         )
         self.transformer_4 = nn.TransformerEncoder(encoder_layer_4, num_layers=1)
         
-        # Stage 3: MLP for final prediction of Y and Z
+        # Learnable pooling: MLP to compute attention weights for pooling
+        self.pooling_mlp = nn.Sequential(
+            nn.Linear(2 * n_embd, n_embd),
+            nn.GELU(),
+            nn.Linear(n_embd, 1)  # Output attention weight for each token
+        )
+        
+        # Stage 3: MLP to map global representation to Y and Z matrices
+        # Output a 6n×6n matrix in the form [Y, 0; 0, Z] where Y and Z are each 3n×3n
         self.mlp = nn.Sequential(
             nn.Linear(2 * n_embd, 4 * n_embd),
             nn.GELU(),
             nn.Linear(4 * n_embd, 2 * n_embd),
             nn.GELU(),
-            nn.Linear(2 * n_embd, 2 * n * n)  # Output Y (n*n) and Z (n*n)
+            nn.Linear(2 * n_embd, 2 * (3*n) * (3*n))  # Output Y (3n×3n) and Z (3n×3n)
         )
         
     def forward(self, xs, ys, inds=None):
@@ -751,59 +760,80 @@ class MatrixChainTransformer(nn.Module):
         # Extract M_i blocks (shape: batch, L, 3n, 3n)
         M_blocks = xs.view(batch_size, self.L, self.block_size, self.n_dims)
         
-        # Flatten each M_i to a vector for transformer processing
-        M_flat = M_blocks.view(batch_size, self.L, -1)  # (batch, L, 3n*3n)
+        # Reshape to treat each row as a token: (batch, L*3n, 3n)
+        M_rows = M_blocks.view(batch_size, self.L * self.block_size, self.n_dims)
         
         # Stage 1: Process original and transposed sequences
-        h1 = self.embed_1(M_flat)  # (batch, L, n_embd)
-        h1 = self.transformer_1(h1)  # (batch, L, n_embd)
+        # Each row of M_i is a token
+        h1 = self.embed_1(M_rows)  # (batch, L*3n, n_embd)
+        h1 = self.transformer_1(h1)  # (batch, L*3n, n_embd)
         
-        # Transposed sequence
+        # Transposed sequence: transpose each M_i and treat rows as tokens
         M_transposed = M_blocks.transpose(-2, -1)  # (batch, L, 3n, 3n)
-        M_transposed_flat = M_transposed.reshape(batch_size, self.L, -1)
+        M_transposed_rows = M_transposed.reshape(batch_size, self.L * self.block_size, self.n_dims)
         
-        h2 = self.embed_2(M_transposed_flat)  # (batch, L, n_embd)
-        h2 = self.transformer_2(h2)  # (batch, L, n_embd)
+        h2 = self.embed_2(M_transposed_rows)  # (batch, L*3n, n_embd)
+        h2 = self.transformer_2(h2)  # (batch, L*3n, n_embd)
         
-        # Concatenate: [M_1, ..., M_L, M_1^T, ..., M_L^T]
-        h_concat = torch.cat([h1, h2], dim=1)  # (batch, 2*L, n_embd)
+        # Concatenate: [all rows of M, all rows of M^T]
+        h_concat = torch.cat([h1, h2], dim=1)  # (batch, L*3n*2, n_embd)
         
         # Stage 2: Two transformers
-        h3 = self.transformer_3(h_concat)  # (batch, 2*L, n_embd)
+        h3 = self.transformer_3(h_concat)  # (batch, L*3n*2, n_embd)
         
-        # Transpose for transformer 4
-        h3_T = h3.transpose(0, 1)  # (2*L, batch, n_embd)
-        h4 = self.transformer_4(h3_T)  # (2*L, batch, n_embd)
-        h4 = h4.transpose(0, 1)  # (batch, 2*L, n_embd)
+        # Reshape for second transformer: treat embedding dimensions as sequence
+        # (batch, L*3n*2, n_embd) -> (batch, L*n_embd*2, 3n)
+        h3_reshaped = h3.view(batch_size, -1, self.block_size)  # (batch, L*n_embd*2, 3n)
+        h4 = self.transformer_4(h3_reshaped)  # (batch, L*n_embd*2, 3n)
+        
+        # Reshape back to match h3's shape
+        h4_reshaped = h4.view(batch_size, self.L * self.block_size * 2, self.n_embd)  # (batch, L*3n*2, n_embd)
         
         # Concatenate h3 and h4
-        h_final = torch.cat([h3, h4], dim=-1)  # (batch, 2*L, 2*n_embd)
+        h_final = torch.cat([h3, h4_reshaped], dim=-1)  # (batch, L*3n*2, 2*n_embd)
         
-        # Use last position (corresponding to M_L)
-        h_last = h_final[:, self.L-1]  # (batch, 2*n_embd)
+        # Learnable attention pooling over sequence dimension
+        attn_weights = self.pooling_mlp(h_final)  # (batch, L*3n*2, 1)
+        attn_weights = torch.softmax(attn_weights, dim=1)  # Normalize over sequence
+        h_pooled = (h_final * attn_weights).sum(dim=1)  # (batch, 2*n_embd)
         
-        # Predict Y and Z
-        yz_pred = self.mlp(h_last)  # (batch, 2*n*n)
-        yz_pred = yz_pred.view(batch_size, 2*self.n, self.n)  # (batch, 2*n, n)
+        # MLP to generate Y and Z matrices
+        mlp_out = self.mlp(h_pooled)  # (batch, 2*3n*3n)
+        mlp_out = mlp_out.view(batch_size, 2, 3*self.n, 3*self.n)  # (batch, 2, 3n, 3n)
         
-        # Split into Y and Z
-        y_pred = yz_pred[:, :self.n, :]  # (batch, n, n)
-        z_pred = yz_pred[:, self.n:, :]  # (batch, n, n)
+        # Extract Y and Z
+        Y_pred = mlp_out[:, 0, :, :]  # (batch, 3n, 3n)
+        Z_pred = mlp_out[:, 1, :, :]  # (batch, 3n, 3n)
         
-        # Construct full output
+        # Construct 6n×6n block diagonal matrix [Y, 0; 0, Z]
+        output_6n = torch.zeros(batch_size, 6*self.n, 6*self.n, device=xs.device)
+        output_6n[:, :3*self.n, :3*self.n] = Y_pred  # Top-left: Y
+        output_6n[:, 3*self.n:, 3*self.n:] = Z_pred  # Bottom-right: Z
+        
+        # Reshape to match expected output format (batch, L*3n, 3n)
+        # For now, we need to figure out how to map 6n×6n to L*3n×3n
+        # Assuming we only fill in the last M_L block
         output = torch.zeros_like(xs)
         
-        # Fill in predictions for last M_i
         last_block_start = (self.L - 1) * self.block_size
         
-        # Y positions
-        y_start = last_block_start + self.n
-        y_end = last_block_start + 2 * self.n
-        output[:, y_start:y_end, self.n:2*self.n] = y_pred
+        # Map the 6n×6n output to the last M_L's Y and Z positions
+        # Y: from [0:3n, 0:3n] in output_6n to appropriate position in output
+        # Z: from [3n:6n, 3n:6n] in output_6n to appropriate position in output
         
-        # Z positions
+        # For the last M_L block, we have positions:
+        # Y rows: [last_block_start+n : last_block_start+2n]
+        # Z rows: [last_block_start+2n : last_block_start+3n]
+        
+        # Extract Y and Z submatrices (n×n each from the center of 3n×3n)
+        Y_center = Y_pred[:, self.n:2*self.n, self.n:2*self.n]  # (batch, n, n)
+        Z_center = Z_pred[:, self.n:2*self.n, self.n:2*self.n]  # (batch, n, n)
+        
+        # Fill in the output
+        y_start = last_block_start + self.n
         z_start = last_block_start + 2 * self.n
-        z_end = last_block_start + 3 * self.n
-        output[:, z_start:z_end, 2*self.n:3*self.n] = z_pred
+        
+        output[:, y_start:y_start+self.n, self.n:2*self.n] = Y_center
+        output[:, z_start:z_start+self.n, 2*self.n:3*self.n] = Z_center
         
         return output
