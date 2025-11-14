@@ -12,7 +12,7 @@ model:
 training:
     task: matrix_chain_vector
     data: matrix_chain_vector
-    task_kwargs: {"L": 2, "n": 4, "m": 4, "p": 4, "q": 4}
+    task_kwargs: {"L": 30, "n": 4, "m": 4, "p": 4, "q": 4}
     batch_size: 64
     learning_rate: 0.0003
     train_steps: 10000
