@@ -91,10 +91,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
         # Handle both scalar targets and vector targets
         if len(ys.shape) == 2:
             # Scalar targets (batch, seq_len): original behavior
-            print(output[:,::2,0].shape)
-            print(ys[:,:].shape)
-            exit()
-            loss = loss_func(output[:,::2,0], ys[:,:])
+            loss = loss_func(output[:,::2], ys[:,:])
         else:
             # Vector targets (batch, seq_len, n_dims): matrix_chain task
             # For matrix_chain: compute loss on Y and Z positions of each M_i
@@ -111,7 +108,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             # print(seq_len, block_size, L)
             # exit()
             # Collect all Y and Z positions for loss computation
-            losses = []
+            loss = 0
             for block_idx in [L-1]:
                 block_start = block_idx * block_size
                 
@@ -135,7 +132,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                     y_pred = output[:, y_start-1, :]
                     y_target = ys[:, y_start, :]
                     y_loss = loss_func(y_pred, y_target)
-                    losses.append(y_loss)
+                    loss += y_loss
                 
                 # For Z: predict from previous position (z_start-1 to z_end-1)
                 # Target: ys[:, z_start:z_end, :]
@@ -146,10 +143,10 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                     # losses.append(z_loss)
             
             # Average loss over all Y and Z positions
-            loss = torch.stack(losses).mean()
+            # loss 
             
             if print_loss:
-                print(f"Loss breakdown: {len(losses)} segments, mean loss: {loss.item():.4f}")
+                print(f"Mean loss: {loss.item():.4f}")
                 print(f"First Y prediction: {output[0, y_start-1, :]}")
                 print(f"First Y target:     {ys[0, y_start, :]}")
                 print(ys.shape)
@@ -216,7 +213,7 @@ def train(model, args, test=False):
             **data_sampler_args,
         )
         task = task_sampler(**task_sampler_args)
-        ys = task.evaluate(xs)
+        xs, ys = task.evaluate(xs)
 
         # print(xs[0,:,:], ys[0,-1])
         # exit()
