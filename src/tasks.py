@@ -765,7 +765,7 @@ class MatrixChainVector(Task):
                 xs_assembled[i, z_start:z_start+n, (n+1):(n+1)+n] = Z
         
         ys_b = xs_assembled.clone()
-        print(ys_b.shape)
+        # print(ys_b.shape)
         return xs_assembled, ys_b
     
     @staticmethod
