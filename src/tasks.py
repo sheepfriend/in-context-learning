@@ -745,8 +745,8 @@ class MatrixChainVector(Task):
                 X = xs_b[i, j]  # (n, n)
                 
                 # Fixed transformation order: Y = X @ A, Z = Y @ B
-                Y = X @ A_b[i] / 2
-                Z = Y @ B_b[i] / 2
+                Y = X @ A_b[i] 
+                Z = Y @ B_b[i] 
                 
                 # Assemble the block
                 block_start = j * rows_per_block
