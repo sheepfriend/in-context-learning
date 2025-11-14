@@ -16,6 +16,7 @@ def get_data_sampler(data_name, n_dims, **kwargs):
         "gaussian": GaussianSampler,
         "table_connectivity": TableConnectivitySampler,
         "table_connectivity_fixed": TableConnectivityFixedEmbeddingSampler,
+        "matrix_chain": MatrixChainSampler,
     }
     if data_name in names_to_classes:
         sampler_cls = names_to_classes[data_name]
@@ -354,5 +355,68 @@ class TableConnectivityFixedEmbeddingSampler(DataSampler):
             xs_b += self.bias
         if n_dims_truncated is not None:
             xs_b[:, :, n_dims_truncated:-1] = 0  # Don't zero out the last dimension (name ID)
+        
+        return xs_b
+
+
+class MatrixChainSampler(DataSampler):
+    """
+    Sampler for MatrixChain task.
+    
+    Generates L matrices X_i, each of size n*m where each row is sampled from N(0, I_m).
+    These matrices will be transformed into Y=AX and Z=YB by the task.
+    
+    For simplicity, we use square matrices: n = m.
+    """
+    
+    def __init__(self, n_dims, L=3, n=4, m=4, bias=None, scale=None, **kwargs):
+        """
+        Args:
+            n_dims: Total number of dimensions (should be 3*n for square matrices)
+            L: Number of matrices in a prompt
+            n: Matrix size (for square n x n matrices)
+            m: Should equal n (for compatibility)
+            bias: Optional bias for the features
+            scale: Optional scaling transformation
+        """
+        super().__init__(n_dims)
+        self.L = L
+        self.n = n
+        self.m = m if m is not None else n
+        assert self.n == self.m, "For MatrixChain, use square matrices (n=m)"
+        self.bias = bias
+        self.scale = scale
+    
+    def sample_xs(self, n_points, b_size, n_dims_truncated=None, seeds=None):
+        """
+        Sample L matrices for each batch item, where each matrix is n*n 
+        with rows sampled from N(0, I_n).
+        
+        Args:
+            n_points: Number of points (not used, determined by L and n)
+            b_size: Batch size
+            n_dims_truncated: Not used for this sampler
+            seeds: Optional seeds for reproducibility
+        
+        Returns:
+            xs_b: shape (b_size, L, n, n) - L square matrices per batch
+        """
+        if seeds is None:
+            # Sample L matrices for each batch
+            # Shape: (b_size, L, n, n)
+            # Each row is sampled from N(0, I_n)
+            xs_b = torch.randn(b_size, self.L, self.n, self.n)
+        else:
+            xs_b = torch.zeros(b_size, self.L, self.n, self.n)
+            generator = torch.Generator()
+            assert len(seeds) == b_size
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed)
+                xs_b[i] = torch.randn(self.L, self.n, self.n, generator=generator)
+        
+        if self.scale is not None:
+            xs_b = xs_b @ self.scale
+        if self.bias is not None:
+            xs_b += self.bias
         
         return xs_b

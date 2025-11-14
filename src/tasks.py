@@ -62,6 +62,7 @@ def get_task_sampler(
         "relu_2nn_regression": Relu2nnRegression,
         "decision_tree": DecisionTree,
         "table_connectivity": TableConnectivity,
+        "matrix_chain": MatrixChain,
     }
     if task_name in task_names_to_classes:
         task_cls = task_names_to_classes[task_name]
@@ -491,3 +492,159 @@ class TableConnectivity(Task):
     @staticmethod
     def get_training_metric():
         return cross_entropy
+
+
+class MatrixChain(Task):
+    """
+    Matrix chain transformation task: Y = AX, Z = YB
+    
+    For each prompt:
+    1. Sample L matrices X_i (each n*m where each row ~ N(0, I_m))
+    2. Apply transformations: Y_i = A @ X_i, Z_i = Y_i @ B (shared A, B for all i)
+    3. Assemble block diagonal matrices M_i = diag(X_i, Y_i, Z_i)
+    4. Concatenate all M_i along sequence dimension
+    5. Train on predicting Y and Z entries (MSE loss)
+    
+    For simplicity, we use square matrices: n = m = p = q
+    """
+    
+    def __init__(
+        self,
+        n_dims,
+        batch_size,
+        pool_dict=None,
+        seeds=None,
+        L=3,
+        n=4,
+        m=4,
+        p=4,
+        q=4,
+    ):
+        """
+        Args:
+            n_dims: Feature dimension (should be 3*n for square matrices)
+            batch_size: Batch size
+            pool_dict: Optional pool of transformation matrices
+            seeds: Optional seeds for reproducibility
+            L: Number of X matrices in a prompt
+            n, m, p, q: Matrix dimensions (for simplicity, use n=m=p=q)
+        
+        Matrix dimensions:
+            X: n * m
+            A: n * n (so Y = AX is n * m)
+            B: m * m (so Z = YB is n * m)
+            For simplicity: n = m, then all matrices are n x n
+        """
+        super(MatrixChain, self).__init__(n_dims, batch_size, pool_dict, seeds)
+        self.L = L
+        self.n = n
+        self.m = m
+        self.p = p
+        self.q = q
+        
+        # For simplicity, use n = m = p = q (all square matrices of same size)
+        assert n == m == p == q, "For simplicity, use n=m=p=q (all same size)"
+        
+        # Generate random transformation matrices A and B
+        # A: n * n, B: n * n (for square matrices)
+        if pool_dict is None and seeds is None:
+            self.A_b = torch.randn(self.b_size, self.n, self.n)
+            self.B_b = torch.randn(self.b_size, self.n, self.n)
+        elif seeds is not None:
+            self.A_b = torch.zeros(self.b_size, self.n, self.n)
+            self.B_b = torch.zeros(self.b_size, self.n, self.n)
+            generator = torch.Generator()
+            assert len(seeds) == self.b_size
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed)
+                self.A_b[i] = torch.randn(self.n, self.n, generator=generator)
+                self.B_b[i] = torch.randn(self.n, self.n, generator=generator)
+        else:
+            assert "A" in pool_dict and "B" in pool_dict
+            indices = torch.randperm(len(pool_dict["A"]))[:batch_size]
+            self.A_b = pool_dict["A"][indices]
+            self.B_b = pool_dict["B"][indices]
+    
+    def evaluate(self, xs_b):
+        """
+        Apply matrix transformations and assemble block diagonal matrices.
+        
+        Input:
+            xs_b: shape (b_size, L, n, n) - L matrices per batch item
+        
+        Output:
+            xs_assembled: shape (b_size, L*3*n, 3*n) - assembled block diagonal matrices
+            ys_b: shape (b_size, L*3*n) - targets (0 for X rows, mean for Y and Z rows)
+        
+        Block structure for each M_i (size 3n x 3n):
+            [X  0  0]
+            [0  Y  0]
+            [0  0  Z]
+        where X, Y, Z are each n x n matrices
+        """
+        b_size = xs_b.shape[0]
+        L = xs_b.shape[1]
+        n = self.n
+        
+        A_b = self.A_b.to(xs_b.device)
+        B_b = self.B_b.to(xs_b.device)
+        
+        # Each block M_i is 3n x 3n
+        block_size = 3 * n
+        total_rows = L * block_size
+        
+        # Initialize assembled matrices
+        xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
+        ys_b = torch.zeros(b_size, total_rows, device=xs_b.device)
+        
+        for i in range(b_size):
+            for j in range(L):
+                # Get X_j for this batch item
+                X = xs_b[i, j]  # shape (n, n)
+                
+                # Compute Y = A @ X
+                Y = A_b[i] @ X  # shape (n, n)
+                
+                # Compute Z = Y @ B
+                Z = Y @ B_b[i]  # shape (n, n)
+                
+                # Create block diagonal matrix M_j
+                # M_j has shape (3n, 3n) with blocks:
+                # [X  0  0]
+                # [0  Y  0]
+                # [0  0  Z]
+                
+                block_start = j * block_size
+                
+                # Fill X block (top-left: rows [0:n], cols [0:n])
+                xs_assembled[i, block_start:block_start+n, :n] = X
+                # Target for X rows is 0 (not used in loss, but set for completeness)
+                ys_b[i, block_start:block_start+n] = 0
+                
+                # Fill Y block (middle: rows [n:2n], cols [n:2n])
+                xs_assembled[i, block_start+n:block_start+2*n, n:2*n] = Y
+                # Target for Y rows: use mean of each row
+                ys_b[i, block_start+n:block_start+2*n] = Y.mean(dim=1)
+                
+                # Fill Z block (bottom-right: rows [2n:3n], cols [2n:3n])
+                xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
+                # Target for Z rows: use mean of each row
+                ys_b[i, block_start+2*n:block_start+3*n] = Z.mean(dim=1)
+        
+        return xs_assembled, ys_b
+    
+    @staticmethod
+    def generate_pool_dict(n_dims, num_tasks, L=3, n=4, m=4, p=4, q=4, **kwargs):
+        """Generate a pool of transformation matrices (assuming n=m=p=q)."""
+        return {
+            "A": torch.randn(num_tasks, n, n),
+            "B": torch.randn(num_tasks, n, n),
+        }
+    
+    @staticmethod
+    def get_metric():
+        return squared_error
+    
+    @staticmethod
+    def get_training_metric():
+        return mean_squared_error

@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""
+Example script showing how to train with MatrixChain task.
+
+This demonstrates:
+1. Creating a simple configuration
+2. Running a short training loop
+3. Checking the model's predictions
+"""
+
+import os
+import sys
+sys.path.append('src')
+
+import torch
+from samplers import MatrixChainSampler
+from tasks import MatrixChain
+from models import build_model
+
+def create_simple_config():
+    """Create a minimal configuration for testing."""
+    config = {
+        'model': {
+            'family': 'gpt2',
+            'n_dims': 12,  # 3 * n = 3 * 4
+            'n_positions': 36,  # L * 3 * n = 3 * 3 * 4
+            'n_embd': 128,
+            'n_layer': 4,
+            'n_head': 4,
+        },
+        'training': {
+            'task': 'matrix_chain',
+            'data': 'matrix_chain',
+            'task_kwargs': {'L': 3, 'n': 4, 'm': 4, 'p': 4, 'q': 4},
+            'num_tasks': None,
+            'num_training_examples': None,
+            'batch_size': 4,
+            'learning_rate': 3e-4,
+            'train_steps': 100,
+            'save_every_steps': 1000,
+            'keep_every_steps': -1,
+            'resume_id': None,
+            'curriculum': {
+                'dims': {
+                    'start': 12,
+                    'end': 12,
+                    'inc': 0,
+                    'interval': 2000
+                },
+                'points': {
+                    'start': 36,
+                    'end': 36,
+                    'inc': 0,
+                    'interval': 2000
+                }
+            }
+        },
+        'wandb': {
+            'project': 'in-context-training',
+            'entity': 'test',
+            'notes': 'Matrix chain example',
+            'name': 'matrix_chain_example',
+            'log_every_steps': 10
+        },
+        'out_dir': '../models/matrix_chain_example',
+        'test_run': True  # Set to True to avoid wandb logging
+    }
+    return config
+
+def simple_training_loop():
+    """Run a simple training loop to demonstrate the task."""
+    print("="*80)
+    print("Matrix Chain Training Example")
+    print("="*80)
+    
+    # Create configuration
+    config = create_simple_config()
+    
+    # Extract parameters
+    n_dims = config['model']['n_dims']
+    n_positions = config['model']['n_positions']
+    batch_size = config['training']['batch_size']
+    task_kwargs = config['training']['task_kwargs']
+    L = task_kwargs['L']
+    n = task_kwargs['n']
+    
+    print(f"\nConfiguration:")
+    print(f"  Model dims: {n_dims}")
+    print(f"  Max positions: {n_positions}")
+    print(f"  Batch size: {batch_size}")
+    print(f"  Task: L={L}, n={n}×{n} matrices")
+    
+    # Create sampler and task
+    print(f"\n1. Creating data sampler and task...")
+    data_sampler = MatrixChainSampler(n_dims=n_dims, **task_kwargs)
+    task_sampler = MatrixChain(n_dims=n_dims, batch_size=batch_size, **task_kwargs)
+    
+    # Sample data
+    print(f"2. Sampling data...")
+    xs = data_sampler.sample_xs(n_points=L*3*n, b_size=batch_size)
+    xs_assembled, ys = task_sampler.evaluate(xs)
+    
+    print(f"   Input shape: {xs_assembled.shape}")
+    print(f"   Target shape: {ys.shape}")
+    
+    # Build model
+    print(f"\n3. Building model...")
+    model_config = config['model']
+    # Convert config dict to object with attributes for build_model
+    class ConfigObj:
+        def __init__(self, d):
+            for k, v in d.items():
+                setattr(self, k, v)
+    
+    model_conf = ConfigObj(model_config)
+    model = build_model(model_conf)
+    print(f"   Model: {model_config['family']}")
+    print(f"   Layers: {model_config['n_layer']}, Heads: {model_config['n_head']}")
+    print(f"   Embedding dim: {model_config['n_embd']}")
+    
+    # Create optimizer
+    print(f"\n4. Setting up optimizer...")
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['learning_rate'])
+    loss_func = torch.nn.MSELoss()
+    
+    # Training loop
+    print(f"\n5. Training for {config['training']['train_steps']} steps...")
+    model.train()
+    
+    for step in range(config['training']['train_steps']):
+        # Sample new data
+        xs = data_sampler.sample_xs(n_points=L*3*n, b_size=batch_size)
+        task = MatrixChain(n_dims=n_dims, batch_size=batch_size, **task_kwargs)
+        xs_assembled, ys = task.evaluate(xs)
+        
+        # Forward pass
+        optimizer.zero_grad()
+        output = model(xs_assembled, ys)
+        
+        # Compute loss only on last position
+        loss = loss_func(output[:, -1], ys[:, -1])
+        
+        # Backward pass
+        loss.backward()
+        optimizer.step()
+        
+        # Log progress
+        if step % 10 == 0:
+            print(f"   Step {step:3d}, Loss: {loss.item():.4f}")
+    
+    print(f"\n6. Final evaluation...")
+    model.eval()
+    with torch.no_grad():
+        # Sample test data
+        xs = data_sampler.sample_xs(n_points=L*3*n, b_size=1)
+        task = MatrixChain(n_dims=n_dims, batch_size=1, **task_kwargs)
+        xs_assembled, ys = task.evaluate(xs)
+        
+        # Get prediction
+        output = model(xs_assembled, ys)
+        
+        # Check prediction accuracy on last position
+        pred = output[0, -1].item()
+        target = ys[0, -1].item()
+        error = abs(pred - target)
+        
+        print(f"   Test prediction: {pred:.4f}")
+        print(f"   Test target: {target:.4f}")
+        print(f"   Absolute error: {error:.4f}")
+    
+    print(f"\n{'='*80}")
+    print("✓ Training example completed!")
+    print("="*80)
+    print(f"\nTo run full training with wandb logging:")
+    print(f"  cd src")
+    print(f"  python train.py --config conf/matrix_chain.yaml")
+
+if __name__ == "__main__":
+    simple_training_loop()
+
