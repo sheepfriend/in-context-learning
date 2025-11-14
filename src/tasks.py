@@ -582,6 +582,10 @@ class MatrixChain(Task):
             [0  0  Z]
         where X, Y, Z are each n x n matrices
         
+        For each batch item, randomly decide:
+        - Y = AX or Y = XA
+        - Z = BY or Z = YB
+        
         For next token prediction, the target at position i is the embedding at position i+1.
         """
         b_size = xs_b.shape[0]
@@ -599,15 +603,28 @@ class MatrixChain(Task):
         xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
         
         for i in range(b_size):
+            # Randomly decide the order for this batch item
+            # 0: Y = AX, Z = YB
+            # 1: Y = AX, Z = BY
+            # 2: Y = XA, Z = YB
+            # 3: Y = XA, Z = BY
+            order = torch.randint(0, 4, (1,)).item()
+            
             for j in range(L):
                 # Get X_j for this batch item
                 X = xs_b[i, j]  # shape (n, n)
                 
-                # Compute Y = A @ X
-                Y = A_b[i] @ X  # shape (n, n)
+                # Compute Y based on random order
+                if order in [0, 1]:  # Y = AX
+                    Y = A_b[i] @ X
+                else:  # order in [2, 3], Y = XA
+                    Y = X @ A_b[i]
                 
-                # Compute Z = Y @ B
-                Z = Y @ B_b[i]  # shape (n, n)
+                # Compute Z based on random order
+                if order in [0, 2]:  # Z = YB
+                    Z = Y @ B_b[i]
+                else:  # order in [1, 3], Z = BY
+                    Z = B_b[i] @ Y
                 
                 # Create block diagonal matrix M_j
                 # M_j has shape (3n, 3n) with blocks:

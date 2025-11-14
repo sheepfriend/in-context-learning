@@ -168,13 +168,30 @@ def simple_training_loop():
         print(f"   B:\n{B.numpy()}")
         
         # Extract the complete Z matrix from the last M_i
+        # Note: The actual order is random in training, here we compute all 4 possibilities
         last_block_idx = L - 1
         X_last = xs[0, last_block_idx]  # The input X matrix
-        Y_last = A @ X_last  # Y = AX
-        Z_last = Y_last @ B  # Z = YB (this is the complete n×n matrix)
         
-        print(f"\n   Last M_{last_block_idx} complete Z matrix (shape {Z_last.shape}):")
-        print(f"   Z:\n{Z_last.numpy()}")
+        print(f"\n   Computing all possible transformations for last M_{last_block_idx}:")
+        print(f"   Order 0: Y = AX, Z = YB")
+        Y_0 = A @ X_last
+        Z_0 = Y_0 @ B
+        print(f"   Z_0:\n{Z_0.numpy()}\n")
+        
+        print(f"   Order 1: Y = AX, Z = BY")
+        Y_1 = A @ X_last
+        Z_1 = B @ Y_1
+        print(f"   Z_1:\n{Z_1.numpy()}\n")
+        
+        print(f"   Order 2: Y = XA, Z = YB")
+        Y_2 = X_last @ A
+        Z_2 = Y_2 @ B
+        print(f"   Z_2:\n{Z_2.numpy()}\n")
+        
+        print(f"   Order 3: Y = XA, Z = BY")
+        Y_3 = X_last @ A
+        Z_3 = B @ Y_3
+        print(f"   Z_3:\n{Z_3.numpy()}")
         
         # Get prediction
         output = model(xs_assembled, ys)
@@ -199,17 +216,26 @@ def simple_training_loop():
         mse_full = ((z_pred_block - z_target_block) ** 2).mean().item()
         
         print(f"\n   Z target encoding: full embedding vectors (no aggregation)")
-        print(f"   Z true matrix (from computation):")
-        print(f"{Z_last.numpy()}")
-        print(f"\n   Z target matrix (from embeddings, should match above):")
+        print(f"\n   Z target matrix (from embeddings, the actual ground truth used):")
         print(f"{z_target_block.numpy()}")
         print(f"\n   Z predicted matrix:")
         print(f"{z_pred_block.numpy()}")
         print(f"\n   Average MSE on full Z matrix: {mse_full:.4f}")
         
+        # Try to identify which order was used by comparing with all possibilities
+        print(f"\n   Identifying which transformation order was used:")
+        mses = []
+        for i, Z in enumerate([Z_0, Z_1, Z_2, Z_3]):
+            mse = ((z_target_block - Z) ** 2).mean().item()
+            mses.append(mse)
+            print(f"   Order {i} MSE: {mse:.6f}")
+        
+        best_order = torch.tensor(mses).argmin().item()
+        print(f"   Best match: Order {best_order} (MSE ≈ {mses[best_order]:.2e})")
+        
         # Also show per-element errors
         element_errors = ((z_pred_block - z_target_block) ** 2).numpy()
-        print(f"   Per-element squared errors:")
+        print(f"\n   Per-element squared errors:")
         print(f"{element_errors}")
     
     print(f"\n{'='*80}")

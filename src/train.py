@@ -22,11 +22,15 @@ torch.backends.cudnn.benchmark = True
 def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
     optimizer.zero_grad()
     output = model(xs, ys)
+    
+    # Handle both scalar targets (shape: batch, seq_len) and vector targets (shape: batch, seq_len, n_dims)
     loss = loss_func(output[:,-1], ys[:,-1])
-    if print_loss:
-        print("Acc:", ((output[:,-1].sign()==ys[:,-1].sign())+0.0).mean())
-        print("P(y=1):", ((ys[:,-1].sign()==1)+0.0).mean())
-        print("P(hat_y=1):", ((output[:,-1].sign()==1)+0.0).mean())
+
+        # if print_loss:
+        #     print("Acc:", ((output[:,-1].sign()==ys[:,-1].sign())+0.0).mean())
+        #     print("P(y=1):", ((ys[:,-1].sign()==1)+0.0).mean())
+        #     print("P(hat_y=1):", ((output[:,-1].sign()==1)+0.0).mean())
+    
     loss.backward()
     optimizer.step()
     return loss.detach().item(), output.detach()
@@ -158,6 +162,7 @@ def train(model, args, test=False):
     task = task_sampler(**task_sampler_args)
     xs, ys = task.evaluate(xs)
     loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True)
+    print(f"Test loss: {loss}")
 
 def main(args):
     if args.test_run:
