@@ -545,12 +545,19 @@ class MatrixChain(Task):
         # For simplicity, use n = m = p = q (all square matrices of same size)
         assert n == m == p == q, "For simplicity, use n=m=p=q (all same size)"
         
-        # Generate random transformation matrices A and B
-        # A: n * n, B: n * n (for square matrices)
-        if pool_dict is None and seeds is None:
-            self.A_b = torch.randn(self.b_size, self.n, self.n)
-            self.B_b = torch.randn(self.b_size, self.n, self.n)
+        # Store configuration for generating A and B
+        self.use_seeds = seeds is not None
+        self.use_pool = pool_dict is not None
+        
+        # Generate transformation matrices A and B based on mode
+        if pool_dict is not None:
+            # Use pool: fixed A and B from pool
+            assert "A" in pool_dict and "B" in pool_dict
+            indices = torch.randperm(len(pool_dict["A"]))[:batch_size]
+            self.A_b = pool_dict["A"][indices]
+            self.B_b = pool_dict["B"][indices]
         elif seeds is not None:
+            # Use seeds: generate deterministic A and B
             self.A_b = torch.zeros(self.b_size, self.n, self.n)
             self.B_b = torch.zeros(self.b_size, self.n, self.n)
             generator = torch.Generator()
@@ -560,10 +567,9 @@ class MatrixChain(Task):
                 self.A_b[i] = torch.randn(self.n, self.n, generator=generator)
                 self.B_b[i] = torch.randn(self.n, self.n, generator=generator)
         else:
-            assert "A" in pool_dict and "B" in pool_dict
-            indices = torch.randperm(len(pool_dict["A"]))[:batch_size]
-            self.A_b = pool_dict["A"][indices]
-            self.B_b = pool_dict["B"][indices]
+            # No pool, no seeds: will generate fresh A and B in evaluate()
+            self.A_b = None
+            self.B_b = None
     
     def evaluate(self, xs_b):
         """
@@ -592,8 +598,15 @@ class MatrixChain(Task):
         L = xs_b.shape[1]
         n = self.n
         
-        A_b = self.A_b.to(xs_b.device)
-        B_b = self.B_b.to(xs_b.device)
+        # Generate or retrieve A and B matrices
+        if self.A_b is None:
+            # No seeds, no pool: generate fresh random A and B for each evaluate call
+            A_b = torch.randn(b_size, n, n, device=xs_b.device)
+            B_b = torch.randn(b_size, n, n, device=xs_b.device)
+        else:
+            # Use pre-generated A and B (from seeds or pool)
+            A_b = self.A_b.to(xs_b.device)
+            B_b = self.B_b.to(xs_b.device)
         
         # Each block M_i is 3n x 3n
         block_size = 3 * n

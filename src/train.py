@@ -99,7 +99,7 @@ def train(model, args, test=False):
         # exit()
 
         loss_func = task.get_training_metric()
-        if i % 100 == 0:
+        if i % 1000 == 0:
             print_loss = True
         else:
             print_loss = False

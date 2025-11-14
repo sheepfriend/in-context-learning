@@ -36,15 +36,16 @@ def test_matrix_chain():
     xs = sampler.sample_xs(n_points=L*3*n, b_size=b_size)
     print(f"   xs shape: {xs.shape} (expected: ({b_size}, {L}, {n}, {n}))")
     
-    # Create task
-    print(f"\n3. Creating MatrixChain task...")
-    task = MatrixChain(n_dims=n_dims, batch_size=b_size, L=L, n=n, m=n, p=n, q=n)
+    # Create task with seeds for reproducibility in testing
+    print(f"\n3. Creating MatrixChain task with seeds for testing...")
+    test_seeds = [42, 43]  # Use seeds to get reproducible A and B for verification
+    task = MatrixChain(n_dims=n_dims, batch_size=b_size, seeds=test_seeds, L=L, n=n, m=n, p=n, q=n)
     
     # Evaluate
     print(f"4. Evaluating task (computing Y=AX, Z=YB, assembling blocks)...")
     xs_assembled, ys = task.evaluate(xs)
     print(f"   xs_assembled shape: {xs_assembled.shape} (expected: ({b_size}, {L*3*n}, {3*n}))")
-    print(f"   ys shape: {ys.shape} (expected: ({b_size}, {L*3*n}))")
+    print(f"   ys shape: {ys.shape} (expected: ({b_size}, {L*3*n}, {3*n}))")
     
     # Verify block diagonal structure
     print(f"\n5. Verifying block diagonal structure...")
@@ -93,23 +94,20 @@ def test_matrix_chain():
     print(f"   Max difference in Y: {Y_diff:.2e} (should be ~0)")
     print(f"   Max difference in Z: {Z_diff:.2e} (should be ~0)")
     
-    # Check targets
-    print(f"\n7. Checking targets (ys)...")
-    print(f"   X rows (should be 0): {ys[batch_idx, block_start:block_start+n]}")
-    print(f"   Y rows (mean of Y matrix rows): {ys[batch_idx, block_start+n:block_start+2*n]}")
-    print(f"   Z rows (mean of Z matrix rows): {ys[batch_idx, block_start+2*n:block_start+3*n]}")
+    # Check targets (now they are full embeddings, not scalars)
+    print(f"\n7. Checking targets (ys are now full embeddings)...")
+    print(f"   ys is now shape: {ys.shape}")
+    print(f"   For next token prediction, ys[i] should equal xs_assembled[i] (shifted)")
     
-    # Verify Y and Z targets match the mean
-    Y_target = ys[batch_idx, block_start+n:block_start+2*n]
-    Y_mean = Y.mean(dim=1)
-    Z_target = ys[batch_idx, block_start+2*n:block_start+3*n]
-    Z_mean = Z.mean(dim=1)
+    # Verify that ys equals xs_assembled (for next token prediction)
+    target_diff = (ys - xs_assembled).abs().max().item()
+    print(f"   Max difference between ys and xs_assembled: {target_diff:.2e} (should be ~0)")
     
-    Y_target_diff = (Y_target - Y_mean).abs().max().item()
-    Z_target_diff = (Z_target - Z_mean).abs().max().item()
-    
-    print(f"   Max difference in Y target: {Y_target_diff:.2e} (should be ~0)")
-    print(f"   Max difference in Z target: {Z_target_diff:.2e} (should be ~0)")
+    # Check specific blocks
+    Y_target_embedding = ys[batch_idx, block_start+n:block_start+2*n, n:2*n]  # Y block in target
+    Y_input_embedding = xs_assembled[batch_idx, block_start+n:block_start+2*n, n:2*n]  # Y block in input
+    Y_match_diff = (Y_target_embedding - Y_input_embedding).abs().max().item()
+    print(f"   Y block match: max diff = {Y_match_diff:.2e} (should be ~0)")
     
     print(f"\n{'='*80}")
     print("✓ All tests passed!")
