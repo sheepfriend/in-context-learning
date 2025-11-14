@@ -83,15 +83,18 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
     else:
         # Standard training for other models
         output = model(xs, ys)
-        if print_loss:
-            print(xs.shape)
-            print(output.shape)
-            print(ys.shape)
-            exit()
+        # if print_loss:
+        #     print(xs.shape)
+        #     print(output.shape)
+        #     print(ys.shape)
+        #     exit()
         # Handle both scalar targets and vector targets
         if len(ys.shape) == 2:
             # Scalar targets (batch, seq_len): original behavior
-            loss = loss_func(output[:,-1], ys[:,-1])
+            print(output[:,::2,0].shape)
+            print(ys[:,:].shape)
+            exit()
+            loss = loss_func(output[:,::2,0], ys[:,:])
         else:
             # Vector targets (batch, seq_len, n_dims): matrix_chain task
             # For matrix_chain: compute loss on Y and Z positions of each M_i
