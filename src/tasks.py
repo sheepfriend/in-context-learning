@@ -728,16 +728,15 @@ class MatrixChainVector(Task):
         
         # For vectorized format: first n^2 rows for x vector, then n rows for Y, then n rows for Z
         # Total rows per block: n^2 + n + n = n^2 + 2n
-        rows_per_block = n * n + 2 * n
-        total_rows = L * rows_per_block
+        rows_per_block = 2*n+1
         
         # n_dims should accommodate the maximum width needed
         # x block: needs 1 column (but we'll use n for consistency)
         # Y block: needs n columns
         # Z block: needs n columns
         # So we use n columns total (n_dims = n)
-        n_cols = n
-        xs_assembled = torch.zeros(b_size, total_rows, n_cols, device=xs_b.device)
+
+        xs_assembled = torch.zeros(b_size, (n*2+1)*L, n*n+n*2, device=xs_b.device)
         
         for i in range(b_size):
             for j in range(L):
@@ -753,17 +752,17 @@ class MatrixChainVector(Task):
                 # x part: flatten X column-wise and place in first column
                 # X flattened: (n*n,)  place in first n*n rows, first column
                 x_flat = X.T.reshape(-1)  # Flatten column-wise (Fortran order)
-                xs_assembled[i, block_start:block_start+n*n, 0] = x_flat
+                xs_assembled[i, block_start, 0:n*n] = x_flat
                 
                 # Y part: place Y in the diagonal block
-                # Rows [n*n : n*n+n], columns [0:n]
-                y_start = block_start + n * n
-                xs_assembled[i, y_start:y_start+n, :n] = Y
+                # Rows [n*n : n*n+n], columns [1:n+1]
+                y_start = block_start + 1
+                xs_assembled[i, y_start:y_start+n, 1:(n+1)] = Y
                 
                 # Z part: place Z in the diagonal block
                 # Rows [n*n+n : n*n+2n], columns [0:n]
                 z_start = y_start + n
-                xs_assembled[i, z_start:z_start+n, :n] = Z
+                xs_assembled[i, z_start:z_start+n, (n+1):(n+1)+n] = Z
         
         ys_b = xs_assembled.clone()
         return xs_assembled, ys_b

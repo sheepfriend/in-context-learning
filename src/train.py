@@ -19,7 +19,7 @@ import wandb
 torch.backends.cudnn.benchmark = True
 
 
-def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
+def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size=3):
     optimizer.zero_grad()
     
     # Check if using custom MatrixChainTransformer
@@ -95,8 +95,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
             # We want to predict Y and Z from previous positions
             
             batch_size, seq_len, n_dims = ys.shape
-            print(ys.shape)
-            exit()
+            # print(ys.shape)
+            # exit()
             n = n_dims // 3  # Assuming n_dims = 3*n for matrix_chain
             block_size = 3 * n
             L = seq_len // block_size  # Number of M_i blocks
@@ -203,12 +203,14 @@ def train(model, args, test=False):
         # print(xs[0,:,:], ys[0,-1])
         # exit()
 
+        block_size = 1+2*data_sampler.n
+
         loss_func = task.get_training_metric()
         if i % 1000 == 0:
             print_loss = True
         else:
             print_loss = False
-        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss)
+        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss, block_size=block_size)
 
         if test:
             exit()
@@ -268,7 +270,7 @@ def train(model, args, test=False):
         )
     task = task_sampler(**task_sampler_args)
     xs, ys = task.evaluate(xs)
-    loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True)
+    loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size)
     print(f"Test loss: {loss}")
 
 def main(args):
