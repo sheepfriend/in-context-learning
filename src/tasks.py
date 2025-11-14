@@ -496,14 +496,14 @@ class TableConnectivity(Task):
 
 class MatrixChain(Task):
     """
-    Matrix chain transformation task: Y = AX, Z = YB
+    Matrix chain transformation task: Y = AX, Z = YB (fixed order)
     
     For each prompt:
-    1. Sample L matrices X_i (each n*m where each row ~ N(0, I_m))
+    1. Sample L matrices X_i (each n×n where each row ~ N(0, I_n))
     2. Apply transformations: Y_i = A @ X_i, Z_i = Y_i @ B (shared A, B for all i)
     3. Assemble block diagonal matrices M_i = diag(X_i, Y_i, Z_i)
     4. Concatenate all M_i along sequence dimension
-    5. Train on predicting Y and Z entries (MSE loss)
+    5. Train on predicting Y and Z from previous positions (next token prediction)
     
     For simplicity, we use square matrices: n = m = p = q
     """
@@ -549,18 +549,6 @@ class MatrixChain(Task):
         self.use_seeds = seeds is not None
         self.use_pool = pool_dict is not None
         
-        # Store order selection for reproducibility
-        if seeds is not None:
-            # Pre-generate order for each batch item using seeds
-            self.orders = []
-            generator = torch.Generator()
-            for i, seed in enumerate(seeds):
-                generator.manual_seed(seed + 1000)  # Use different seed offset for order
-                order = torch.randint(0, 4, (1,), generator=generator).item()
-                self.orders.append(order)
-        else:
-            self.orders = None
-        
         # Generate transformation matrices A and B based on mode
         if pool_dict is not None:
             # Use pool: fixed A and B from pool
@@ -600,9 +588,9 @@ class MatrixChain(Task):
             [0  0  Z]
         where X, Y, Z are each n x n matrices
         
-        For each batch item, randomly decide:
-        - Y = AX or Y = XA
-        - Z = BY or Z = YB
+        Transformations:
+        - Y = AX
+        - Z = YB
         
         For next token prediction, the target at position i is the embedding at position i+1.
         """
@@ -628,33 +616,15 @@ class MatrixChain(Task):
         xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
         
         for i in range(b_size):
-            # Decide the order for this batch item
-            # 0: Y = AX, Z = YB
-            # 1: Y = AX, Z = BY
-            # 2: Y = XA, Z = YB
-            # 3: Y = XA, Z = BY
-            if self.orders is not None:
-                # Use pre-generated order (deterministic with seeds)
-                order = self.orders[i]
-            else:
-                # Generate random order (no seeds)
-                order = torch.randint(0, 4, (1,)).item()
-            
             for j in range(L):
                 # Get X_j for this batch item
                 X = xs_b[i, j]  # shape (n, n)
                 
-                # Compute Y based on random order
-                if order in [0, 1]:  # Y = AX
-                    Y = A_b[i] @ X
-                else:  # order in [2, 3], Y = XA
-                    Y = X @ A_b[i]
+                # Compute Y = AX
+                Y = A_b[i] @ X
                 
-                # Compute Z based on random order
-                if order in [0, 2]:  # Z = YB
-                    Z = Y @ B_b[i]
-                else:  # order in [1, 3], Z = BY
-                    Z = B_b[i] @ Y
+                # Compute Z = YB
+                Z = Y @ B_b[i]
                 
                 # Create block diagonal matrix M_j
                 # M_j has shape (3n, 3n) with blocks:
