@@ -83,7 +83,10 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
     else:
         # Standard training for other models
         output = model(xs, ys)
-        
+        if print_loss:
+            print(output.shape)
+            print(ys.shape)
+            exit()
         # Handle both scalar targets and vector targets
         if len(ys.shape) == 2:
             # Scalar targets (batch, seq_len): original behavior
