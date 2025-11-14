@@ -23,15 +23,57 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False):
     optimizer.zero_grad()
     output = model(xs, ys)
     
-    # Handle both scalar targets (shape: batch, seq_len) and vector targets (shape: batch, seq_len, n_dims)
-    loss = loss_func(output[:,-2,:], ys[:,-1,:])
-
-    if print_loss:
-        print(output[0,-2,:])
-        print(ys[0,-1,:])
-        #     print("Acc:", ((output[:,-1].sign()==ys[:,-1].sign())+0.0).mean())
-        #     print("P(y=1):", ((ys[:,-1].sign()==1)+0.0).mean())
-        #     print("P(hat_y=1):", ((output[:,-1].sign()==1)+0.0).mean())
+    # Handle both scalar targets and vector targets
+    if len(ys.shape) == 2:
+        # Scalar targets (batch, seq_len): original behavior
+        loss = loss_func(output[:,-1], ys[:,-1])
+    else:
+        # Vector targets (batch, seq_len, n_dims): matrix_chain task
+        # For matrix_chain: compute loss on Y and Z positions of each M_i
+        # Each M_i has block_size = 3*n positions: X(n), Y(n), Z(n)
+        # We want to predict Y and Z from previous positions
+        
+        batch_size, seq_len, n_dims = ys.shape
+        n = n_dims // 3  # Assuming n_dims = 3*n for matrix_chain
+        block_size = 3 * n
+        L = seq_len // block_size  # Number of M_i blocks
+        
+        # Collect all Y and Z positions for loss computation
+        losses = []
+        for block_idx in range(L):
+            block_start = block_idx * block_size
+            
+            # Y positions: [block_start+n : block_start+2*n]
+            y_start = block_start + n
+            y_end = block_start + 2 * n
+            
+            # Z positions: [block_start+2*n : block_start+3*n]
+            z_start = block_start + 2 * n
+            z_end = block_start + 3 * n
+            
+            # For Y: predict from previous position (y_start-1 to y_end-1)
+            # Target: ys[:, y_start:y_end, :]
+            if y_start > 0:
+                y_pred = output[:, y_start-1:y_end-1, :]
+                y_target = ys[:, y_start:y_end, :]
+                y_loss = loss_func(y_pred, y_target)
+                losses.append(y_loss)
+            
+            # For Z: predict from previous position (z_start-1 to z_end-1)
+            # Target: ys[:, z_start:z_end, :]
+            if z_start > 0:
+                z_pred = output[:, z_start-1:z_end-1, :]
+                z_target = ys[:, z_start:z_end, :]
+                z_loss = loss_func(z_pred, z_target)
+                losses.append(z_loss)
+        
+        # Average loss over all Y and Z positions
+        loss = torch.stack(losses).mean()
+        
+        if print_loss:
+            print(f"Loss breakdown: {len(losses)} segments, mean loss: {loss.item():.4f}")
+            print(f"First Y prediction: {output[0, n-1, :5]}")
+            print(f"First Y target:     {ys[0, n, :5]}")
     
     loss.backward()
     optimizer.step()

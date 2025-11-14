@@ -153,12 +153,13 @@ def simple_training_loop():
     print(f"\n6. Final evaluation...")
     model.eval()
     with torch.no_grad():
-        # Sample test data
+        # Sample test data with a fixed seed for evaluation
+        test_seed = 999
         xs = data_sampler.sample_xs(n_points=L*3*n, b_size=1)
-        task = MatrixChain(n_dims=n_dims, batch_size=1, **task_kwargs)
+        task = MatrixChain(n_dims=n_dims, batch_size=1, seeds=[test_seed], **task_kwargs)
         xs_assembled, ys = task.evaluate(xs)
         
-        # Display A and B matrices
+        # Display A and B matrices (now available because we used seeds)
         A = task.A_b[0]  # shape (n, n)
         B = task.B_b[0]  # shape (n, n)
         print(f"   Transformation matrices A and B:")
