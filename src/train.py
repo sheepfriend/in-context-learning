@@ -100,7 +100,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             # exit()
             # n = n_dims // 3  # Assuming n_dims = 3*n for matrix_chain
             # block_size = 3 * n
-            # L = seq_len // block_size  # Number of M_i blocks
+            L = seq_len // block_size  # Number of M_i blocks
             
             # Collect all Y and Z positions for loss computation
             losses = []
