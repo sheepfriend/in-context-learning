@@ -3,8 +3,14 @@ inherit:
 
 training:
     task: decision_tree
+    data: gaussian
     task_kwargs: {"depth": 4}
     curriculum:
+        dims:
+            start: 20
+            end: 20
+            inc: 0
+            interval: 2000
         points:
             start: 26
             end: 101

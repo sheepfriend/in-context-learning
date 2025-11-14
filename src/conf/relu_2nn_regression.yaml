@@ -3,8 +3,14 @@ inherit:
 
 training:
     task: relu_2nn_regression
+    data: gaussian
     task_kwargs: {"hidden_layer_size": 100}
     curriculum:
+        dims:
+            start: 20
+            end: 20
+            inc: 0
+            interval: 2000
         points:
             start: 26
             end: 101

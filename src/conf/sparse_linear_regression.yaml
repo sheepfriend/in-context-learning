@@ -3,8 +3,14 @@ inherit:
 
 training:
     task: sparse_linear_regression
+    data: gaussian
     task_kwargs: {"sparsity": 3}
     curriculum:
+        dims:
+            start: 20
+            end: 20
+            inc: 0
+            interval: 2000
         points:
             start: 11
             end: 41
