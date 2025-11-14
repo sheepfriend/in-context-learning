@@ -136,7 +136,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                     z_pred = output[:, z_start-1:z_end-1, :]
                     z_target = ys[:, z_start:z_end, :]
                     z_loss = loss_func(z_pred, z_target)
-                    losses.append(z_loss*0)
+                    losses.append(z_loss)
             
             # Average loss over all Y and Z positions
             loss = torch.stack(losses).mean()
