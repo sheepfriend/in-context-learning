@@ -84,6 +84,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
         # Standard training for other models
         output = model(xs, ys)
         if print_loss:
+            print(xs.shape)
             print(output.shape)
             print(ys.shape)
             exit()
