@@ -217,7 +217,7 @@ def train(model, args, test=False):
         block_size = 1+1
 
         loss_func = task.get_training_metric()
-        if i % 500 == 0:
+        if i % 100 == 0:
             print_loss = True
             # print(xs[0,::5,::4][ :,:4]@task.last_A_b[0][:,0])
             # print(ys[0,1::5,16])
