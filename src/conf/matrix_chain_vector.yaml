@@ -1,0 +1,35 @@
+inherit: 
+    - wandb.yaml
+
+model:
+    family: gpt2  # Use standard GPT2 transformer
+    n_dims: 4  # n (matrix size)
+    n_positions: 66  # L * (n^2 + 2n) = 3 * (16 + 8) = 72, use a bit less for buffer
+    n_embd: 128
+    n_layer: 12
+    n_head: 4
+
+training:
+    task: matrix_chain_vector
+    data: matrix_chain_vector
+    task_kwargs: {"L": 3, "n": 4, "m": 4, "p": 4, "q": 4}
+    batch_size: 64
+    learning_rate: 0.0003
+    train_steps: 10000
+    curriculum:
+        dims:
+            start: 4
+            end: 4
+            inc: 0
+            interval: 2000
+        points:
+            start: 66
+            end: 66
+            inc: 0
+            interval: 2000
+
+out_dir: ../models/matrix_chain_vector
+
+wandb:
+    name: "matrix_chain_vector_gpt2"
+

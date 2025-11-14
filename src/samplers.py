@@ -17,6 +17,7 @@ def get_data_sampler(data_name, n_dims, **kwargs):
         "table_connectivity": TableConnectivitySampler,
         "table_connectivity_fixed": TableConnectivityFixedEmbeddingSampler,
         "matrix_chain": MatrixChainSampler,
+        "matrix_chain_vector": MatrixChainVectorSampler,
     }
     if data_name in names_to_classes:
         sampler_cls = names_to_classes[data_name]
@@ -405,6 +406,53 @@ class MatrixChainSampler(DataSampler):
             # Sample L matrices for each batch
             # Shape: (b_size, L, n, n)
             # Each row is sampled from N(0, I_n)
+            xs_b = torch.randn(b_size, self.L, self.n, self.n)
+        else:
+            xs_b = torch.zeros(b_size, self.L, self.n, self.n)
+            generator = torch.Generator()
+            assert len(seeds) == b_size
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed)
+                xs_b[i] = torch.randn(self.L, self.n, self.n, generator=generator)
+        
+        if self.scale is not None:
+            xs_b = xs_b @ self.scale
+        if self.bias is not None:
+            xs_b += self.bias
+        
+        return xs_b
+
+
+class MatrixChainVectorSampler(DataSampler):
+    """
+    Sampler for MatrixChainVector task.
+    
+    Similar to MatrixChainSampler, but X matrices will be reshaped into column vectors (n^2 x 1).
+    The data format becomes [x, 0, 0; 0, Y, 0; 0, 0, Z] where x is a flattened column vector.
+    """
+    
+    def __init__(self, n_dims, L=3, n=4, m=4, bias=None, scale=None, **kwargs):
+        """
+        Args:
+            n_dims: Total number of dimensions (for vectorized X: should be n^2 + n + n = n^2 + 2n)
+            L: Number of matrices in a prompt
+            n: Matrix size (for n x n matrices)
+            m: Should equal n (for compatibility)
+        """
+        super().__init__(n_dims)
+        self.L = L
+        self.n = n
+        self.m = m if m is not None else n
+        assert self.n == self.m, "For MatrixChainVector, use square matrices (n=m)"
+        self.bias = bias
+        self.scale = scale
+    
+    def sample_xs(self, n_points, b_size, n_dims_truncated=None, seeds=None):
+        """
+        Sample L matrices for each batch item, where each matrix is n*n.
+        These will be reshaped into column vectors by the task.
+        """
+        if seeds is None:
             xs_b = torch.randn(b_size, self.L, self.n, self.n)
         else:
             xs_b = torch.zeros(b_size, self.L, self.n, self.n)
