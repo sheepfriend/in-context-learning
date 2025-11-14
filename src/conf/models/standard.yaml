@@ -2,4 +2,4 @@ model:
     family: gpt2
     n_embd: 256
     n_layer: 12
-    n_head: 2
+    n_head: 8
