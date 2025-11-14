@@ -766,7 +766,7 @@ class MatrixChainVector(Task):
         
         ys_b = xs_assembled.clone()
         # print(ys_b.shape)
-        print(ys_b)
+        print(ys_b[0])
         exit()
         return xs_assembled, ys_b
     
