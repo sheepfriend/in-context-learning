@@ -122,8 +122,10 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 # For Y: predict from previous position (y_start-1 to y_end-1)
                 # Target: ys[:, y_start:y_end, :]
                 if y_start > 0:
-                    y_pred = output[:, y_start-1:y_end-1, :]
-                    y_target = ys[:, y_start:y_end, :]
+                    # y_pred = output[:, y_start-1:y_end-1, :]
+                    # y_target = ys[:, y_start:y_end, :]
+                    y_pred = output[:, y_star-1, :]
+                    y_target = ys[:, y_start, :]
                     y_loss = loss_func(y_pred, y_target)
                     losses.append(y_loss)
                 
