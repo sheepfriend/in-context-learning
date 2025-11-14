@@ -3,12 +3,12 @@ inherit:
 
 model:
     n_dims: 12  # n+p+q (4+4+4)
-    n_positions: 36  # L * (n+p+q) = 3 * 12
+    n_positions: 1000  # L * (n+p+q) = 3 * 12
 
 training:
     task: matrix_chain
     data: matrix_chain
-    task_kwargs: {"L": 3, "n": 4, "m": 4, "p": 4, "q": 4}
+    task_kwargs: {"L": 20, "n": 4, "m": 4, "p": 4, "q": 4}
     batch_size: 64
     learning_rate: 0.0003
     train_steps: 10000
@@ -19,8 +19,8 @@ training:
             inc: 0
             interval: 2000
         points:
-            start: 36
-            end: 36
+            start: 1000
+            end: 1000
             inc: 0
             interval: 2000
 
