@@ -777,6 +777,8 @@ class MatrixChainVector(Task):
 
         print(xs_assembled[0,0,::4])
         print(self.last_A_b[0,:,0])
+        print(xs_assembled[0,0,::4]@self.last_A_b[0,:,0])
+        exit()
         # print(ys_b.shape)
         # for i in ys_b[0]:
             # print(i)
