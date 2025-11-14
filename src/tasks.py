@@ -748,6 +748,7 @@ class MatrixChainVector(Task):
                 Y = X @ A_b[i] 
                 print(X[:,0])
                 print(A_b[i][0,:])
+                print(X[:,0]@A_b[i][0,:])
                 print(Y[0,0])
                 exit()
                 Z = Y @ B_b[i] 
