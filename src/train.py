@@ -209,7 +209,7 @@ def train(model, args, test=False):
             **data_sampler_args,
         )
         task = task_sampler(**task_sampler_args)
-        xs, ys = task.evaluate(xs)
+        ys = task.evaluate(xs)
 
         # print(xs[0,:,:], ys[0,-1])
         # exit()
