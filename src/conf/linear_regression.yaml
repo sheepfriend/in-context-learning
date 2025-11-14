@@ -3,7 +3,14 @@ inherit:
 
 training:
     task: linear_regression
+    data: gaussian
+    task_kwargs: {}
     curriculum:
+        dims:
+            start: 20
+            end: 20
+            inc: 0
+            interval: 2000
         points:
             start: 11
             end: 41
