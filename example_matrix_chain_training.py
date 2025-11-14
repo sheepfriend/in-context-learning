@@ -159,14 +159,23 @@ def simple_training_loop():
         # Get prediction
         output = model(xs_assembled, ys)
         
-        # Check prediction accuracy on last position
-        pred = output[0, -1].item()
-        target = ys[0, -1].item()
-        error = abs(pred - target)
+        # Calculate MSE on the Z part of the last M_i
+        # Last M_i: positions [(L-1)*3*n : L*3*n]
+        # Z part of last M_i: positions [(L-1)*3*n + 2*n : L*3*n]
+        last_z_start = (L-1) * 3 * n + 2 * n  # Start of Z in last block
+        last_z_end = L * 3 * n  # End of last block
         
-        print(f"   Test prediction: {pred:.4f}")
-        print(f"   Test target: {target:.4f}")
-        print(f"   Absolute error: {error:.4f}")
+        # Extract predictions and targets for Z part of last M_i
+        z_pred = output[0, last_z_start:last_z_end]
+        z_target = ys[0, last_z_start:last_z_end]
+        
+        # Calculate MSE
+        mse = ((z_pred - z_target) ** 2).mean().item()
+        
+        print(f"   Last M_{L-1} Z positions: [{last_z_start}:{last_z_end}]")
+        print(f"   Z predictions: {z_pred.numpy()}")
+        print(f"   Z targets:     {z_target.numpy()}")
+        print(f"   Average MSE on last M_i's Z: {mse:.4f}")
     
     print(f"\n{'='*80}")
     print("✓ Training example completed!")
