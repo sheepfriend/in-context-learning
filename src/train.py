@@ -94,6 +94,9 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
         # Handle both scalar targets and vector targets
         if len(ys.shape) == 2:
             # Scalar targets (batch, seq_len): original behavior
+            print(output.shape)
+            print(ys.shape)
+            exit()
             loss = loss_func(output[:,::2], ys[:,:])
         else:
             # Vector targets (batch, seq_len, n_dims): matrix_chain task
