@@ -161,7 +161,7 @@ class TransformerModel(nn.Module):
         prediction = self._read_out(output)
         
         # Check if ys is scalar (shape: batch, seq_len) or vector (shape: batch, seq_len, n_dims)
-        if len(ys.shape) == 2:
+        if ys is not None and len(ys.shape) == 2:
             # Scalar target: return only first dimension for backward compatibility
             return prediction[:, :, 0]
         else:
