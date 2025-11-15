@@ -196,7 +196,7 @@ class TransformerModelGroup(nn.Module):
         self._model1 = TransformerModel(n_dims, n_positions, n_embd, n_layer, n_head)
         self._model2 = TransformerModel(n_dims, n_positions, n_embd, n_layer, n_head)
 
-        self._linear = nn.linear(2*n_dims, n_dims)
+        self._linear = nn.Linear(2*n_dims, n_dims)
 
     def forward(self, xs, ys, zs, inds=None):
         if inds is None:
