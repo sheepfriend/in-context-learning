@@ -44,6 +44,14 @@ def build_model(conf):
             L=L,
             n=n,
         )
+    elif conf.family == "transformer_group":
+        model = TransformerModelGroup(
+            n_dims=conf.n_dims,
+            n_positions=conf.n_positions,
+            n_embd=conf.n_embd,
+            n_layer=conf.n_layer,
+            n_head=conf.n_head,
+        )
     else:
         raise NotImplementedError
 
@@ -167,6 +175,57 @@ class TransformerModel(nn.Module):
         else:
             # Vector target: return full n_dims dimensional prediction
             return prediction
+
+class TransformerModelGroup(nn.Module):
+    def __init__(self, n_dims, n_positions, n_embd=128, n_layer=12, n_head=4):
+        super(TransformerModelGroup, self).__init__()
+        configuration = GPT2Config(
+            n_positions=2 * n_positions,
+            n_embd=n_embd,
+            n_layer=n_layer,
+            n_head=n_head,
+            resid_pdrop=0.0,
+            embd_pdrop=0.0,
+            attn_pdrop=0.0,
+            use_cache=False,
+        )
+        self.name = f"gpt2_group_embd={n_embd}_layer={n_layer}_head={n_head}"
+
+        self.n_positions = n_positions
+        self.n_dims = n_dims
+        self._model1 = TransformerModel(n_dims, n_positions, n_embd, n_layer, n_head)
+        self._model2 = TransformerModel(n_dims, n_positions, n_embd, n_layer, n_head)
+
+        self._linear = nn.linear(2*n_dims, n_dims)
+
+    def forward(self, xs, ys, zs, inds=None):
+        if inds is None:
+            inds = torch.arange(xs.shape[1])
+        else:
+            inds = torch.tensor(inds)
+
+        output1 = self._model1(xs, ys, inds)
+
+        sample_size  = xs.shape[0]
+        dim = xs.shape[2]
+        L = xs.shape[1] // dim // 2
+
+        zs1 = zs.clone()
+        zs2 = zs.clone()
+
+        for i in range(sample_size):
+            for j in range(L):
+                zs1[i,(2*j)*dim:(2*j+1)*dim,:] = output1[i,(2*j+1)*dim:(2*j+2)*dim,:]
+                zs2[i,(2*j)*dim:(2*j+1)*dim,:] = output1[i,(2*j+1)*dim:(2*j+2)*dim,:].T
+
+        output21 = self._model2(zs1, zs1, inds)
+        output21 = self._model2(zs2, zs2, inds)
+
+        output = torch.cat([output21, output22], dim=-1)
+        
+        output = self._linear(output)
+        
+        return output
 
 
 class LowRankTransformerModel(nn.Module):

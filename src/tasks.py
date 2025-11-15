@@ -497,11 +497,13 @@ class TableConnectivity(Task):
 
 class MatrixChain(Task):
     """
-    Matrix chain transformation task: Y = AX, Z = YB (fixed order)
+    Matrix chain transformation task: Y = A @ X, Z = B @ Y or Z = B @ Y.T (random)
     
     For each prompt:
     1. Sample L matrices X_i (each n×n where each row ~ N(0, I_n))
-    2. Apply transformations: Y_i = A @ X_i, Z_i = Y_i @ B (shared A, B for all i)
+    2. Apply transformations: 
+       - Y_i = A @ X_i (shared A for all i)
+       - Z_i = B @ Y_i or Z_i = B @ Y_i.T (randomly chosen per batch, 50% each)
     3. Assemble block diagonal matrices M_i = diag(X_i, Y_i, Z_i)
     4. Concatenate all M_i along sequence dimension
     5. Train on predicting Y and Z from previous positions (next token prediction)
@@ -571,6 +573,19 @@ class MatrixChain(Task):
             # No pool, no seeds: will generate fresh A and B in evaluate()
             self.A_b = None
             self.B_b = None
+        
+        # Random choice for Z computation: Z = B @ Y or Z = B @ Y.T
+        # Generate deterministically if seeds provided
+        if seeds is not None:
+            self.z_transpose_flags = []
+            generator = torch.Generator()
+            for i, seed in enumerate(seeds):
+                generator.manual_seed(seed + 2000)  # Different seed offset
+                # 50% chance to transpose Y before B multiplication
+                self.z_transpose_flags.append(torch.randint(0, 2, (1,), generator=generator).item() == 1)
+        else:
+            # Will be decided randomly in evaluate()
+            self.z_transpose_flags = None
     
     def evaluate(self, xs_b):
         """
@@ -580,18 +595,19 @@ class MatrixChain(Task):
             xs_b: shape (b_size, L, n, n) - L matrices per batch item
         
         Output:
-            xs_assembled: shape (b_size, L*3*n, 3*n) - assembled block diagonal matrices
-            ys_b: shape (b_size, L*3*n, 3*n) - targets (full embeddings for next token prediction)
+            xs_assembled: shape (b_size, L*2*n, n) - assembled matrices
+            ys_b: shape (b_size, L*2*n, n) - targets (full embeddings for next token prediction)
+            zs_assembled1: shape (b_size, L*2*n, n) - Z computed as B @ Y
+            zs_assembled2: shape (b_size, L*2*n, n) - Z computed as B @ Y.T
         
-        Block structure for each M_i (size 3n x 3n):
-            [X  0  0]
-            [0  Y  0]
-            [0  0  Z]
-        where X, Y, Z are each n x n matrices
+        Block structure for each M_i:
+            [X]  (n rows)
+            [Y]  (n rows)
+        where X, Y are each n x n matrices
         
         Transformations:
-        - Y = AX
-        - Z = YB
+        - Y = A @ X
+        - Z = B @ Y or Z = B @ Y.T (randomly chosen per batch, 50% each)
         
         For next token prediction, the target at position i is the embedding at position i+1.
         """
@@ -611,23 +627,34 @@ class MatrixChain(Task):
         self.last_A_b = A_b
         self.last_B_b = B_b
         
+        # Generate Z transpose flags if not already set
+        if self.z_transpose_flags is None:
+            z_transpose_flags = [torch.randint(0, 2, (1,)).item() == 1 for _ in range(b_size)]
+        else:
+            z_transpose_flags = self.z_transpose_flags
+        
         # Each block M_i is 3n x 3n
         block_size = 2 * n
         total_rows = L * block_size
         
         # Initialize assembled matrices
         xs_assembled = torch.zeros(b_size, total_rows, n, device=xs_b.device)
+        zs_assembled1 = torch.zeros(b_size, total_rows, n, device=xs_b.device)
+        zs_assembled2 = torch.zeros(b_size, total_rows, n, device=xs_b.device)
         
         for i in range(b_size):
             for j in range(L):
                 # Get X_j for this batch item
                 X = xs_b[i, j]  # shape (n, n)
                 
-                # Compute Y = XA
-                Y =  A_b[i] @ X 
+                # Compute Y = A @ X
+                Y = A_b[i] @ X 
                 
-                # Compute Z = YB
-                Z = B_b[i] @ Y
+                # Compute Z: randomly choose between B @ Y or B @ Y.T
+                if z_transpose_flags[i]:
+                    Z = B_b[i] @ Y.T  # Z = B @ Y^T
+                else:
+                    Z = B_b[i] @ Y    # Z = B @ Y
                 
                 # Create block diagonal matrix M_j
                 # M_j has shape (3n, 3n) with blocks:
@@ -643,6 +670,13 @@ class MatrixChain(Task):
                 
                 # Fill Y block (middle: rows [n:2n], cols [n:2n])
                 xs_assembled[i, block_start+n:block_start+2*n, :n] = Y
+
+                zs_assembled1[i, block_start:block_start+n, :n] = Y
+                zs_assembled2[i, block_start:block_start+n, :n] = Y.T
+
+                # Store both versions of Z for reference
+                zs_assembled1[i, block_start+n:block_start+2*n, :n] = B_b[i] @ Y    # Z = B @ Y
+                zs_assembled2[i, block_start+n:block_start+2*n, :n] = B_b[i] @ Y.T  # Z = B @ Y^T
                 
                 # Fill Z block (bottom-right: rows [2n:3n], cols [2n:3n])
                 # xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
@@ -654,7 +688,7 @@ class MatrixChain(Task):
         ys_b = xs_assembled.clone()
 
         
-        return xs_assembled, ys_b
+        return xs_assembled, ys_b, zs_assembled1, zs_assembled2
     
     @staticmethod
     def generate_pool_dict(n_dims, num_tasks, L=3, n=4, m=4, p=4, q=4, **kwargs):
