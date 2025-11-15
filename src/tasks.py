@@ -612,15 +612,14 @@ class MatrixChain(Task):
         self.last_B_b = B_b
         
         # Each block M_i is 3n x 3n
-        block_size = n
+        block_size = 2 * n
         total_rows = 2 * L * block_size
         
         # Initialize assembled matrices
-        xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
+        xs_assembled = torch.zeros(b_size, total_rows, n, device=xs_b.device)
         
         for i in range(b_size):
             for j in range(L):
-                print(j)
                 # Get X_j for this batch item
                 X = xs_b[i, j]  # shape (n, n)
                 
@@ -638,6 +637,7 @@ class MatrixChain(Task):
                 
                 block_start = j * block_size
                 
+
                 # Fill X block (top-left: rows [0:n], cols [0:n])
                 xs_assembled[i, block_start:block_start+n, :n] = X
                 
@@ -647,8 +647,8 @@ class MatrixChain(Task):
                 # Fill Z block (bottom-right: rows [2n:3n], cols [2n:3n])
                 # xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
         
-            print(xs_assembled[0,block_start:,:])
-            exit()
+            # print(xs_assembled[0,block_start:,:])
+            # exit()
         # For next token prediction, ys[i] = xs[i+1]
         # The target is to predict the next embedding
         ys_b = xs_assembled.clone()
