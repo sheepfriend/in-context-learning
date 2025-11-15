@@ -1,5 +1,5 @@
 inherit: 
-    - base.yaml
+    - wandb.yaml
 
 model:
     family: transformer_group  # Use standard GPT2 transformer
