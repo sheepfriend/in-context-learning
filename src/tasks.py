@@ -620,6 +620,7 @@ class MatrixChain(Task):
         
         for i in range(b_size):
             for j in range(L):
+                print(j)
                 # Get X_j for this batch item
                 X = xs_b[i, j]  # shape (n, n)
                 
