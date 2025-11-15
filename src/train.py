@@ -271,7 +271,7 @@ def train(model, args, test=False):
         block_size = 1+1
 
         loss_func = task.get_training_metric()
-        if i % 1000 == 0:
+        if i % 100 == 0:
             print_loss = True
             # print(xs[0,::2,::4])
             # print(xs[0,::2,::task.n]@task.last_A_b[0][:,0])
