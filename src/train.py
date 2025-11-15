@@ -93,10 +93,10 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
         #     exit()
         # Handle both scalar targets and vector targets
         if len(ys.shape) == 2:
-            # Scalar targets (batch, seq_len): original behavior
-            print(output.shape)
-            print(ys.shape)
-            exit()
+            # # Scalar targets (batch, seq_len): original behavior
+            # print(output.shape)
+            # print(ys.shape)
+            # exit()
             loss = loss_func(output[:,::2], ys[:,:])
         else:
             # Vector targets (batch, seq_len, n_dims): matrix_chain task
@@ -243,31 +243,31 @@ def train(model, args, test=False):
         if test:
             exit()
 
-        point_wise_tags = list(range(curriculum.n_points))
-        point_wise_loss_func = task.get_metric()
-        point_wise_loss = point_wise_loss_func(output, ys.cuda()).mean(dim=0)
+        # point_wise_tags = list(range(curriculum.n_points))
+        # point_wise_loss_func = task.get_metric()
+        # point_wise_loss = point_wise_loss_func(output, ys.cuda()).mean(dim=0)
 
-        baseline_loss = (
-            sum(
-                max(curriculum.n_dims_truncated - ii, 0)
-                for ii in range(curriculum.n_points)
-            )
-            / curriculum.n_points
-        )
+        # baseline_loss = (
+        #     sum(
+        #         max(curriculum.n_dims_truncated - ii, 0)
+        #         for ii in range(curriculum.n_points)
+        #     )
+        #     / curriculum.n_points
+        # )
 
-        if i % args.wandb.log_every_steps == 0 and not args.test_run:
-            wandb.log(
-                {
-                    "overall_loss": loss,
-                    "excess_loss": loss / baseline_loss,
-                    "pointwise/loss": dict(
-                        zip(point_wise_tags, point_wise_loss.cpu().numpy())
-                    ),
-                    "n_points": curriculum.n_points,
-                    "n_dims": curriculum.n_dims_truncated,
-                },
-                step=i,
-            )
+        # if i % args.wandb.log_every_steps == 0 and not args.test_run:
+            # wandb.log(
+            #     {
+            #         "overall_loss": loss,
+            #         "excess_loss": loss / baseline_loss,
+            #         "pointwise/loss": dict(
+            #             zip(point_wise_tags, point_wise_loss.cpu().numpy())
+            #         ),
+            #         "n_points": curriculum.n_points,
+            #         "n_dims": curriculum.n_dims_truncated,
+            #     },
+            #     step=i,
+            # )
 
         curriculum.update()
 
