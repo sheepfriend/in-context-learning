@@ -231,8 +231,8 @@ def train(model, args, test=False):
         if i % 1000 == 0:
             print_loss = True
             # print(xs[0,::2,::4])
-            print(xs[0,::2,::task.n]@task.last_A_b[0][:,0])
-            print(ys[0,1::2,0])
+            # print(xs[0,::2,::task.n]@task.last_A_b[0][:,0])
+            # print(ys[0,1::2,0])
         else:
             print_loss = False
         loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss, block_size=block_size, n=1)#data_sampler.n)
