@@ -195,9 +195,12 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             if print_loss:
                 print(f"Mean loss: {loss.item():.4f}")
                 # print(xs[0,y_start-1,:])
-                print(y_start-1,block_size)
+                # print(y_start-1,block_size)
+                print(y_pred,y_target,y_loss)
                 print(f"First Y prediction: {output[0, block_start:, :]}")
                 print(f"First Y target:     {ys[0, block_start:, :]}")
+                print(f"First Y prediction: {output[0, :block_size, :]}")
+                print(f"First Y target:     {ys[0, :block_size, :]}")
 
 
 
