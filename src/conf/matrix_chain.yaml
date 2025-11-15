@@ -2,7 +2,7 @@ inherit:
     - base.yaml
 
 model:
-    n_dims: 4  # n+p+q (4+4+4)
+    n_dims: 2  # n+p+q (4+4+4)
     n_positions: 200  # L * (n+p+q) = 3 * 12
 
 training:
@@ -14,8 +14,8 @@ training:
     train_steps: 50000
     curriculum:
         dims:
-            start: 4
-            end: 4
+            start: 2
+            end: 2
             inc: 0
             interval: 2000
         points:
