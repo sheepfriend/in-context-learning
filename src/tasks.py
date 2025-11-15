@@ -647,8 +647,8 @@ class MatrixChain(Task):
                 # Fill Z block (bottom-right: rows [2n:3n], cols [2n:3n])
                 # xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
         
-            # print(xs_assembled[0,block_start:,:])
-            # exit()
+            print(xs_assembled[0,:,:])
+            exit()
         # For next token prediction, ys[i] = xs[i+1]
         # The target is to predict the next embedding
         ys_b = xs_assembled.clone()
