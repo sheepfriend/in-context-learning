@@ -168,12 +168,15 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             
             L = seq_len // block_size  # Number of M_i blocks
 
-
+            
             loss = 0
             for block_idx in [L-1]:
                 block_start = block_idx * block_size
             
                 y_start = block_start + n
+                print(seq_len, block_size, L)
+                print(block_start, y_start)
+                exit()
                 y_end = y_start + n
                 # z_start = block_start + 1 + n
                 # z_end = block_start + 1 + 2 * n
