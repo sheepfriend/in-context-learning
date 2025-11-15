@@ -98,7 +98,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             # print(ys.shape)
             # exit()
             loss = loss_func(output[:,::2], ys[:,:])
-        else:
+        elif block_size == 2:
             # Vector targets (batch, seq_len, n_dims): matrix_chain task
             # For matrix_chain: compute loss on Y and Z positions of each M_i
             # Each M_i has block_size = 3*n positions: X(n), Y(n), Z(n)
@@ -135,8 +135,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 if y_start > 0:
                     # y_pred = output[:, y_start-1:y_end-1, :]
                     # y_target = ys[:, y_start:y_end, :]
-                    y_pred = output[:, ::2, 0]
-                    y_target = ys[:, 1::2, 0]
+                    y_pred = output[:, ::block_size, 0]
+                    y_target = ys[:, 1::block_size, 0]
                     y_loss = loss_func(y_pred, y_target)
                     loss += y_loss
                 
@@ -160,6 +160,40 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 # print(xs.shape)
                 # print(y_pred,y_target,y_loss)
     
+        else: # X is a matrix not vector
+            batch_size, seq_len, n_dims = ys.shape
+            
+            L = seq_len // block_size  # Number of M_i blocks
+
+
+            loss = 0
+            for block_idx in [L-1]:
+                block_start = block_idx * block_size
+            
+                y_start = block_start + n
+                y_end = y_start + n
+                # z_start = block_start + 1 + n
+                # z_end = block_start + 1 + 2 * n
+
+                # For Y: predict from previous position (y_start-1 to y_end-1)
+                # Target: ys[:, y_start:y_end, :]
+                if y_start > 0:
+                    # y_pred = output[:, y_start-1:y_end-1, :]
+                    # y_target = ys[:, y_start:y_end, :]
+                    y_pred = output[:, (n-1)::block_size, n:2*n]
+                    y_target = ys[:, ::block_size, n:2*n]
+                    y_loss = loss_func(y_pred, y_target)
+                    loss += y_loss
+                
+            
+            if print_loss:
+                print(f"Mean loss: {loss.item():.4f}")
+                # print(xs[0,y_start-1,:])
+                print(f"First Y prediction: {output[0, y_start-1, :]}")
+                print(f"First Y target:     {ys[0, y_start, :]}")
+
+
+
     loss.backward()
     optimizer.step()
     return loss.detach().item(), output.detach()

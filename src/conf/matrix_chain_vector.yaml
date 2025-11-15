@@ -14,7 +14,7 @@ training:
     data: matrix_chain_vector
     task_kwargs: {"L": 50, "n": 2, "m": 2, "p": 2, "q": 2}
     batch_size: 64
-    learning_rate: 0.003
+    learning_rate: 0.0001
     train_steps: 50000
     curriculum:
         dims:

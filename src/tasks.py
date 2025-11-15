@@ -622,10 +622,10 @@ class MatrixChain(Task):
                 X = xs_b[i, j]  # shape (n, n)
                 
                 # Compute Y = XA
-                Y =  X @ A_b[i]
+                Y =  A_b[i] @ X 
                 
                 # Compute Z = YB
-                Z = Y @ B_b[i]
+                Z = B_b[i] @ Y
                 
                 # Create block diagonal matrix M_j
                 # M_j has shape (3n, 3n) with blocks:

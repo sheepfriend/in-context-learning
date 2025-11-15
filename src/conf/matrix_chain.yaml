@@ -2,20 +2,20 @@ inherit:
     - base.yaml
 
 model:
-    n_dims: 12  # n+p+q (4+4+4)
-    n_positions: 1000  # L * (n+p+q) = 3 * 12
+    n_dims: 6  # n+p+q (4+4+4)
+    n_positions: 600  # L * (n+p+q) = 3 * 12
 
 training:
     task: matrix_chain
     data: matrix_chain
-    task_kwargs: {"L": 20, "n": 4, "m": 4, "p": 4, "q": 4}
+    task_kwargs: {"L": 50, "n": 2, "m": 2, "p": 2, "q": 2}
     batch_size: 64
-    learning_rate: 0.0003
-    train_steps: 10000
+    learning_rate: 0.0001
+    train_steps: 50000
     curriculum:
         dims:
-            start: 12
-            end: 12
+            start: 6
+            end: 6
             inc: 0
             interval: 2000
         points:
