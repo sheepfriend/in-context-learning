@@ -92,7 +92,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
         #     print(ys.shape)
         #     exit()
         # Handle both scalar targets and vector targets
-        if len(ys.shape) == 2:
+        if ys is not None and len(ys.shape) == 2:
             # # Scalar targets (batch, seq_len): original behavior
             # print(output.shape)
             # print(ys.shape)
@@ -104,6 +104,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
             # Each M_i has block_size = 3*n positions: X(n), Y(n), Z(n)
             # We want to predict Y and Z from previous positions
             
+            ys = xs
+
             batch_size, seq_len, n_dims = ys.shape
             
             # print(ys.shape)
@@ -161,6 +163,7 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 # print(y_pred,y_target,y_loss)
     
         else: # X is a matrix not vector
+            ys = xs
             batch_size, seq_len, n_dims = ys.shape
             
             L = seq_len // block_size  # Number of M_i blocks
