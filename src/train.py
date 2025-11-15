@@ -265,7 +265,7 @@ def train(model, args, test=False):
         # print(xs[0,0,::4])
         xs, ys = task.evaluate(xs)
         # print(xs[0,0,::4])
-        print(ys.shape)
+        # print(ys.shape)
         # print(xs[0,:,:], ys[0,-1])
         # exit()
 
