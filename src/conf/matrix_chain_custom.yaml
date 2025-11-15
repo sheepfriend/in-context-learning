@@ -13,8 +13,8 @@ model:
 training:
     task: matrix_chain
     data: matrix_chain
-    task_kwargs: {"L": 3, "n": 4, "m": 4, "p": 4, "q": 4}
-    batch_size: 64
+    task_kwargs: {"L": 30, "n": 2, "m": 2, "p": 2, "q": 2}
+    batch_size: 256
     learning_rate: 0.0003
     train_steps: 10000
     curriculum:
