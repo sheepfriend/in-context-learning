@@ -604,12 +604,12 @@ class MatrixChain(Task):
             # No seeds, no pool: generate fresh random A and B for each evaluate call
             A_b = torch.randn(b_size, n, n, device=xs_b.device)
             B_b = torch.randn(b_size, n, n, device=xs_b.device)
-            self.last_A_b = A_b
-            self.last_B_b = B_b
         else:
             # Use pre-generated A and B (from seeds or pool)
             A_b = self.A_b.to(xs_b.device)
             B_b = self.B_b.to(xs_b.device)
+        self.last_A_b = A_b
+        self.last_B_b = B_b
         
         # Each block M_i is 3n x 3n
         block_size = 3 * n
