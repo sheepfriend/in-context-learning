@@ -186,8 +186,8 @@ def train_step(model, xs, ys, optimizer, loss_func, print_loss=False, block_size
                 if y_start > 0:
                     # y_pred = output[:, y_start-1:y_end-1, :]
                     # y_target = ys[:, y_start:y_end, :]
-                    y_pred = output[:, y_start-1, n:2*n]
-                    y_target = ys[:, y_start, n:2*n]
+                    y_pred = output[:, (n-1)::block_size, n:2*n]
+                    y_target = ys[:, n::block_size, n:2*n]
                     y_loss = loss_func(y_pred, y_target)
                     loss += y_loss
                 
@@ -273,6 +273,8 @@ def train(model, args, test=False):
         loss_func = task.get_training_metric()
         if i % 100 == 0:
             print_loss = True
+            print(xs[0,:4,:4]@task.last_A_b[0][:,0])
+            print(ys[0,4,4])
             # print(xs[0,::2,::4])
             # print(xs[0,::2,::task.n]@task.last_A_b[0][:,0])
             # print(ys[0,1::2,0])
