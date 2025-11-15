@@ -349,7 +349,7 @@ def train(model, args, test=False):
     task = task_sampler(**task_sampler_args)
     xs, ys = task.evaluate(xs)
     if args.training.task == "matrix_chain":
-        block_size = 3 * data_sampler.n
+        block_size = 2 * data_sampler.n
         loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=data_sampler.n)
     elif args.training.task == "matrix_chain_vector":
         block_size = 2 

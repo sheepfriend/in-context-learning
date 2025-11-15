@@ -2,8 +2,8 @@ inherit:
     - base.yaml
 
 model:
-    n_dims: 6  # n+p+q (4+4+4)
-    n_positions: 600  # L * (n+p+q) = 3 * 12
+    n_dims: 4  # n+p+q (4+4+4)
+    n_positions: 200  # L * (n+p+q) = 3 * 12
 
 training:
     task: matrix_chain

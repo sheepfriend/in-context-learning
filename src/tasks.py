@@ -612,8 +612,8 @@ class MatrixChain(Task):
         self.last_B_b = B_b
         
         # Each block M_i is 3n x 3n
-        block_size = 3 * n
-        total_rows = L * block_size
+        block_size = n
+        total_rows = 2 * L * block_size
         
         # Initialize assembled matrices
         xs_assembled = torch.zeros(b_size, total_rows, block_size, device=xs_b.device)
@@ -641,10 +641,10 @@ class MatrixChain(Task):
                 xs_assembled[i, block_start:block_start+n, :n] = X
                 
                 # Fill Y block (middle: rows [n:2n], cols [n:2n])
-                xs_assembled[i, block_start+n:block_start+2*n, n:2*n] = Y
+                xs_assembled[i, block_start+n:block_start+2*n, :n] = Y
                 
                 # Fill Z block (bottom-right: rows [2n:3n], cols [2n:3n])
-                xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
+                # xs_assembled[i, block_start+2*n:block_start+3*n, 2*n:3*n] = Z
         
         # For next token prediction, ys[i] = xs[i+1]
         # The target is to predict the next embedding
