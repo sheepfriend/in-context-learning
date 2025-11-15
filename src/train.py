@@ -275,8 +275,13 @@ def train(model, args, test=False):
             # print(ys[0,1::2,0])
         else:
             print_loss = False
-        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=print_loss, block_size=block_size, n=1)#data_sampler.n)
-
+        if args.training.task == "matrix_chain":
+            loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=data_sampler.n)
+        elif args.training.task == "matrix_chain_vector":
+            loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=1)#data_sampler.n)
+        else:
+            loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=1)#data_sampler.n)
+        
         if test:
             exit()
 
@@ -335,7 +340,13 @@ def train(model, args, test=False):
         )
     task = task_sampler(**task_sampler_args)
     xs, ys = task.evaluate(xs)
-    loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=1)#data_sampler.n)
+    if args.training.task == "matrix_chain":
+        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=data_sampler.n)
+    elif args.training.task == "matrix_chain_vector":
+        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=1)#data_sampler.n)
+    else:
+        loss, output = train_step(model, xs.cuda(), ys.cuda(), optimizer, loss_func, print_loss=True, block_size=block_size, n=1)#data_sampler.n)
+    
     print(f"Test loss: {loss}")
 
 def main(args):
