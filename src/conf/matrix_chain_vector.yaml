@@ -4,7 +4,7 @@ inherit:
 model:
     family: gpt2  # Use standard GPT2 transformer
     n_dims: 16
-    n_positions: 200  # L * (n^2 + 2n) = 3 * (16 + 8) = 72, use a bit less for buffer
+    n_positions: 60  # L * (n^2 + 2n) = 3 * (16 + 8) = 72, use a bit less for buffer
     n_embd: 256
     n_layer: 12
     n_head: 8
@@ -14,7 +14,7 @@ training:
     data: matrix_chain_vector
     task_kwargs: {"L": 30, "n": 4, "m": 4, "p": 4, "q": 4}
     batch_size: 64
-    learning_rate: 0.0003
+    learning_rate: 0.00003
     train_steps: 50000
     curriculum:
         dims:
