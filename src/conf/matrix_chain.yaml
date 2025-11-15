@@ -2,6 +2,14 @@ inherit:
     - base.yaml
 
 model:
+    family: transformer_group  # Use standard GPT2 transformer
+    n_dims: 4
+    n_positions: 100  # L * (n^2 + 2n) = 3 * (16 + 8) = 72, use a bit less for buffer
+    n_embd: 256
+    n_layer: 12
+    n_head: 8
+
+model:
     n_dims: 2  # n+p+q (4+4+4)
     n_positions: 200  # L * (n+p+q) = 3 * 12
 
