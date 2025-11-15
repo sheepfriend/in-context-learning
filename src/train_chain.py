@@ -32,7 +32,7 @@ def train_step(model, xs, ys, zs1, zs2, optimizer, loss_func, print_loss=False, 
     L = seq_len // block_size  # Number of M_i blocks
 
     loss = 0
-    output = model._model1(xs, ys)
+    output = model._model1(xs, None)
     for block_idx in [L-1]:
         block_start = block_idx * block_size
     
@@ -45,7 +45,7 @@ def train_step(model, xs, ys, zs1, zs2, optimizer, loss_func, print_loss=False, 
                 y_loss = loss_func(y_pred, y_target)
                 loss += y_loss
     
-    output21 = model._model2(zs1, zs1)
+    output21 = model._model2(zs1, None)
     for block_idx in [L-1]:
         block_start = block_idx * block_size
     
@@ -59,7 +59,7 @@ def train_step(model, xs, ys, zs1, zs2, optimizer, loss_func, print_loss=False, 
                 loss += y_loss
 
 
-    output22 = model._model2(zs2, zs2)
+    output22 = model._model2(zs2, None)
     for block_idx in [L-1]:
         block_start = block_idx * block_size
     
